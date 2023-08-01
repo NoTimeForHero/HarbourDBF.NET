@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using Loader.Data;
+using Loader.External;
 
 namespace Loader
 {
@@ -29,7 +31,10 @@ namespace Loader
                 new FieldType("DATA1", "M", 10, 0),
             });
             DbfHarbour.Use("test44");
-            DbfHarbour.Use("");
+            DbfHarbour.Append();
+            DbfHarbour.Append();
+            DbfHarbour.Append();
+            DbfHarbour.Use(null);
 
             Console.WriteLine("Press any key to exit...");
             Console.ReadKey();

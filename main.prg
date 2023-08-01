@@ -47,6 +47,12 @@ HB_EXPORT void * _export DBF_USE( const char * cDatabaseName)
   return NULL;
 }
 
+HB_EXPORT void * _export DBF_APPEND()
+{
+  hb_itemDoC( "DBF_APPEND", 0);
+  return NULL;
+}
+
 HB_EXPORT void * _export DBF_CREATE( const char * cDatabaseName, const char * cJsonStructure)
 {
   //printf("Create DBF: %s\n", cDatabaseName);
@@ -96,8 +102,21 @@ HB_EXPORT char * _export C_TEST( const char * cProcName, const char * cText1 )
 //#include "hbclass.ch"
 //#include "common.ch"
 
+REQUEST DBFCDX, DBFFPT
+
 FUNCTION DBF_USE(cAlias)
-  USE (cAlias)
+  LOCAL bError := ErrorBlock( {|e| Break(e) } )
+  ? "DBF_USE: ", ValType(cAlias), cAlias
+  BEGIN SEQUENCE 
+    IF LEN(cAlias) != 0
+      USE (cAlias)
+    ELSE
+      USE
+    ENDIF
+  RECOVER USING xError
+    ? "ERROR OCCURED DURING USING: ", cAlias
+    ? "ERROR: ", xError, HB_ValToExp(xError)
+  ENDSEQUENCE
 RETURN NIL
 
 FUNCTION DBF_CREATE(cName, cJson)
@@ -106,6 +125,10 @@ FUNCTION DBF_CREATE(cName, cJson)
   hb_jsonDecode(cJson, @xStruct)
   // ? "RAW: ", ValType(xStruct), " ", HB_ValToExp(xStruct)
   dbCreate(cName, xStruct)
+RETURN NIL
+
+FUNCTION DBF_APPEND()
+  APPEND BLANK
 RETURN NIL
 
 function TEST_COMBINE(cArg1, cArg2)
