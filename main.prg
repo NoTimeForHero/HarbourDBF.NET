@@ -9,13 +9,18 @@
 /*
  Заметки об использованных функциях
 
+ NOTE: Функция возвращает размер объекта, а сам объект передаётся вторым аргументом по ссылке!
+ HB_SIZE hb_jsonDecode( const char * szSource, PHB_ITEM pValue );
+
  NOTE: The caller should free the pointer if it's not NULL. [vszakats]
  char * hb_itemGetC( PHB_ITEM pItem )
 
  NOTE: Caller should not modify the buffer returned by this function. [vszakats]
  const char * hb_itemGetCPtr( PHB_ITEM pItem )
-*/
 
+ hb_xfree(rawResult); // Очистка аллоцированной памяти
+ hb_itemFreeC(rawResult); // Вызов hb_xfree с дополнительным логгингом
+*/
 
 BOOL WINAPI DllMain( HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved )       //This Works!
 {
@@ -24,6 +29,7 @@ BOOL WINAPI DllMain( HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved )  
   switch( fdwReason )
   {
     case DLL_PROCESS_ATTACH:
+      printf("Attached to main!\n");
       //MessageBox( 0, "We're in DLLMain", "1", 0 );
       hb_vmInit( FALSE );
       break;
@@ -43,6 +49,9 @@ HB_EXPORT void * _export DBF_USE( const char * cDatabaseName)
 
 HB_EXPORT void * _export DBF_CREATE( const char * cDatabaseName, const char * cJsonStructure)
 {
+  //printf("Create DBF: %s\n", cDatabaseName);
+  //printf("Structure: %s\n", cJsonStructure);
+  //MessageBox( 0, cJsonStructure, "1", 0 );
   PHB_ITEM pName = hb_itemPutC( NULL, cDatabaseName );
   PHB_ITEM pJson = hb_itemPutC( NULL, cJsonStructure );
   hb_itemDoC( "DBF_CREATE", 2, pName, pJson);
@@ -71,14 +80,13 @@ HB_EXPORT char * _export C_TEST( const char * cProcName, const char * cText1 )
   //hb_itemFreeC(rawResult);
   //hb_xfree(rawResult); // Аналогично предыдущему но без DEBUG LOG-ов
 
-  //hb_itemDoC( "TESTHB", 0, (PHB_ITEM *) 0);
-  //MessageBox( 0, cProcName, "1", 0 );
-  //MessageBox( 0, cText1, "1", 0 );
-  //MessageBox( 0, rawResult, "1", 0 );
   hb_itemRelease( pItem1 );
   hb_itemRelease( pItem2 );
   hb_itemRelease( pResult );
-  //return hb_itemGetC( pResult );
+  //printf("Arg 1: %s\n", cProcName);
+  //printf("Arg 2: %s\n", cText1);
+  //printf("Result: %s\n", rawResult);
+
   return rawResult;
 }
 #pragma ENDDUMP
@@ -92,21 +100,13 @@ FUNCTION DBF_USE(cAlias)
   USE (cAlias)
 RETURN NIL
 
-FUNCTION DBF_CREATE(cName, cStructure)
-  LOCAL aStructure
-  aStructure := hb_jsonDecode(cName)
-  dbCreate(cName, aStructure)
+FUNCTION DBF_CREATE(cName, cJson)
+  LOCAL xStruct
+  // ? "DBF_CREATE: ", cName, " ", cJson
+  hb_jsonDecode(cJson, @xStruct)
+  // ? "RAW: ", ValType(xStruct), " ", HB_ValToExp(xStruct)
+  dbCreate(cName, xStruct)
 RETURN NIL
 
 function TEST_COMBINE(cArg1, cArg2)
-RETURN "Combined: " + cArg1 + cArg2
-
-//function TESTHB(cTest)
-//set alternate to E:\EY\597harbour\dlltest\test1.dat
-//set alternate to test1.dat
-//set alternate on
-//?
-//? "Inside testhb()"
-//?
-//close alternate
-//return NIL
+RETURN "Combined: " + cArg1 + " " + cArg2

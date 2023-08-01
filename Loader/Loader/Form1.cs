@@ -16,7 +16,6 @@ namespace Loader
         public Form1()
         {
             InitializeComponent();
-
             Win32.AllocConsole();
             var handle = Win32.GetConsoleWindow();
             Win32.ShowWindow(handle, 0);

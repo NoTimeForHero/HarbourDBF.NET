@@ -14,9 +14,25 @@ namespace Loader
         [STAThread]
         static void Main()
         {
+            /*
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
             Application.Run(new Form1());
+            */
+            //var mixed = TestLibrary.Test1("Hello", "world");
+            //Console.WriteLine("C#: " + mixed);
+
+            DbfHarbour.Create("test44", new[]
+            {
+                new FieldType("LOGIN", "C", 16, 0),
+                new FieldType("USER", "C", 16, 0),
+                new FieldType("DATA1", "M", 10, 0),
+            });
+            DbfHarbour.Use("test44");
+            DbfHarbour.Use("");
+
+            Console.WriteLine("Press any key to exit...");
+            Console.ReadKey();
         }
     }
 }
