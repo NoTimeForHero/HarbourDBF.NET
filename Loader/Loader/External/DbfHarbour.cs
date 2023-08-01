@@ -28,6 +28,11 @@ namespace Loader.External
         [DllImport("test1.dll", EntryPoint = "DBF_GOTO", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         public static extern IntPtr GoTo(long recordNumber);
 
+        [DllImport("test1.dll", EntryPoint = "DBF_GET_LAST_ERROR", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        private static extern IntPtr _GetLastError();
+
+        public static string GetLastError() => Marshal.PtrToStringAnsi(_GetLastError());
+
         public static void SetValues(Dictionary<string, object> values)
         {
             // TODO: Приведение сложных типов вроде DateTime к корректному Harbour формату

@@ -1,0 +1,15 @@
+# Build dynamic library with Harbour VM
+-hbdynvm
+
+# Do not make terminal window
+-gui
+
+# Building log level: TRACE
+# -trace
+
+# Output name
+-otest1
+
+# Input files
+syserror.prg
+main.prg

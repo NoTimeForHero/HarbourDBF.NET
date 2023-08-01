@@ -23,8 +23,10 @@ namespace Loader
                 new FieldType("DATA1", "M", 10, 0),
             });
 
+            var error1 = DbfHarbour.GetLastError();
             // Открываем созданный справочник
-            DbfHarbour.Use("test44");
+            DbfHarbour.Use("test4423");
+            var error = DbfHarbour.GetLastError();
 
             // Создаём Запись 1
             DbfHarbour.Append();

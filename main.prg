@@ -29,9 +29,10 @@ BOOL WINAPI DllMain( HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved )  
   switch( fdwReason )
   {
     case DLL_PROCESS_ATTACH:
-      printf("Attached to main!\n");
+      //printf("Attached to main!\n");
       //MessageBox( 0, "We're in DLLMain", "1", 0 );
       hb_vmInit( FALSE );
+      hb_itemDoC( "INIT_LIBRARY", 0);
       break;
     case DLL_PROCESS_DETACH:
       hb_vmQuit();
@@ -46,6 +47,13 @@ HB_EXPORT void * _export DBF_GOTO( long recordNumber)
   hb_itemDoC( "DBF_GOTO", 1, pRecord);
   hb_itemRelease( pRecord );
   return NULL;
+}
+
+HB_EXPORT void * _export DBF_GET_LAST_ERROR()
+{
+  PHB_ITEM pValue = hb_itemDoC( "DBF_GET_LAST_ERROR", 0);
+  char * rawResult = (char*) hb_itemGetCPtr(pValue);
+  return rawResult;
 }
 
 HB_EXPORT void * _export DBF_USE( const char * cDatabaseName)
@@ -119,40 +127,35 @@ HB_EXPORT char * _export C_TEST( const char * cProcName, const char * cText1 )
 //#include "fileio.ch"
 //#include "hbclass.ch"
 //#include "common.ch"
+#define CLRF CHR(13) + CHR(10)
 
 REQUEST DBFCDX, DBFFPT
 
+STATIC cLastError := NIL
+
+FUNCTION DBF_GET_LAST_ERROR()
+RETURN cLastError
+
 FUNCTION DBF_USE(cAlias)
-  LOCAL bError := ErrorBlock( {|e| Break(e) } )
+  // LOCAL bError := ErrorBlock( {|e| Break(e) } )
   // ? "DBF_USE: ", ValType(cAlias), cAlias
-  BEGIN SEQUENCE 
-    IF LEN(cAlias) != 0
-      USE (cAlias)
-    ELSE
-      USE
-    ENDIF
-  RECOVER USING xError
-    ? "ERROR OCCURED DURING USING: ", cAlias
-    ? "ERROR: ", xError, HB_ValToExp(xError)
-  ENDSEQUENCE
+  IF LEN(cAlias) != 0
+    USE (cAlias)
+  ELSE
+    USE
+  ENDIF
 RETURN NIL
 
 FUNCTION DBF_CREATE(cName, cJson)
   LOCAL xStruct
   // ? "DBF_CREATE: ", cName, " ", cJson
   hb_jsonDecode(cJson, @xStruct)
-  // ? "RAW: ", ValType(xStruct), " ", HB_ValToExp(xStruct)
   dbCreate(cName, xStruct)
+  // ? "RAW: ", ValType(xStruct), " ", HB_ValToExp(xStruct)
 RETURN NIL
 
 FUNCTION DBF_GOTO(nIndex)
-  LOCAL bError := ErrorBlock( {|e| Break(e) } )
-  BEGIN SEQUENCE 
-    DBGOTO(nIndex)
-  RECOVER USING xError
-    ? "DBF_GOTO FAILED: ", nIndex
-    ? "ERROR: ", xError, HB_ValToExp(xError)
-  ENDSEQUENCE
+  DBGOTO(nIndex)
 RETURN NIL
 
 FUNCTION DBF_APPEND()
@@ -160,20 +163,34 @@ FUNCTION DBF_APPEND()
 RETURN NIL
 
 FUNCTION DBF_SET_VALUES(cJson)
-  LOCAL bError := ErrorBlock( {|e| Break(e) } )
   LOCAL aData, nI, aRecord, nField
-  BEGIN SEQUENCE 
-    hb_jsonDecode(cJson, @aData)
-    FOR nI := 1 TO LEN(aData)
-      aRecord := aData[nI]
-      nField := FIELDPOS(aRecord[1])
-      FIELDPUT(nField, aRecord[2])
-    NEXT
-  RECOVER USING xError
-    ? "DB_SET_VALUES FAILED: ", cJson
-    ? "ERROR: ", xError, HB_ValToExp(xError)
-  ENDSEQUENCE
+  hb_jsonDecode(cJson, @aData)
+  FOR nI := 1 TO LEN(aData)
+    aRecord := aData[nI]
+    nField := FIELDPOS(aRecord[1])
+    FIELDPUT(nField, aRecord[2])
+  NEXT
 RETURN NIL
+
+FUNCTION ERROR_PROCEDURE(oErr)
+  LOCAL nI, cText, cLine
+  cText := DebugErrorMessage(oErr) + CLRF
+  n := 1
+  WHILE ! Empty( ProcName( ++n ) )
+     cLine := "Called from " + ProcName( n ) + "(" + hb_ntos( ProcLine( n ) ) + ")" + ;
+        iif( ProcLine( n ) > 0, " in module: " + ProcFile( n ), "" ) + CLRF
+     cText += cLine
+  ENDDO
+  ? cText
+  cLastError := cText
+  Break(oErr)
+RETURN NIL
+
+FUNCTION INIT_LIBRARY()
+  LOCAL bError := ErrorBlock( {|e| ERROR_PROCEDURE(e) } )
+  ? "Library initialized!"
+RETURN NIL
+
 
 function TEST_COMBINE(cArg1, cArg2)
 RETURN "Combined: " + cArg1 + " " + cArg2
