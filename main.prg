@@ -40,10 +40,19 @@ BOOL WINAPI DllMain( HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved )  
   return TRUE;
 }
 
+HB_EXPORT void * _export DBF_GOTO( long recordNumber)
+{
+  PHB_ITEM pRecord = hb_itemPutNL( NULL, recordNumber );
+  hb_itemDoC( "DBF_GOTO", 1, pRecord);
+  hb_itemRelease( pRecord );
+  return NULL;
+}
+
 HB_EXPORT void * _export DBF_USE( const char * cDatabaseName)
 {
   PHB_ITEM pName = hb_itemPutC( NULL, cDatabaseName );
   hb_itemDoC( "DBF_USE", 1, pName);
+  hb_itemRelease( pName );
   return NULL;
 }
 
@@ -53,13 +62,22 @@ HB_EXPORT void * _export DBF_APPEND()
   return NULL;
 }
 
-HB_EXPORT void * _export DBF_CREATE( const char * cDatabaseName, const char * cJsonStructure)
+HB_EXPORT void * _export DBF_SET_VALUES(const char * cJson)
+{
+  //MessageBox( 0, cJson, "1", 0 );  
+  PHB_ITEM pJson = hb_itemPutC( NULL, cJson );
+  hb_itemDoC( "DBF_SET_VALUES", 1, pJson);
+  hb_itemRelease( pJson );
+  return NULL;
+}
+
+HB_EXPORT void * _export DBF_CREATE( const char * cDatabaseName, const char * cJson)
 {
   //printf("Create DBF: %s\n", cDatabaseName);
-  //printf("Structure: %s\n", cJsonStructure);
-  //MessageBox( 0, cJsonStructure, "1", 0 );
+  //printf("Structure: %s\n", cJson);
+  //MessageBox( 0, cJson, "1", 0 );
   PHB_ITEM pName = hb_itemPutC( NULL, cDatabaseName );
-  PHB_ITEM pJson = hb_itemPutC( NULL, cJsonStructure );
+  PHB_ITEM pJson = hb_itemPutC( NULL, cJson );
   hb_itemDoC( "DBF_CREATE", 2, pName, pJson);
   hb_itemRelease( pName );
   hb_itemRelease( pJson );
@@ -72,14 +90,14 @@ HB_EXPORT char * _export C_TEST( const char * cProcName, const char * cText1 )
   PHB_ITEM pResult;
   PHB_ITEM pItem1;
   PHB_ITEM pItem2;
-  char *rawResult;
+  char* rawResult;
 
   pItem1 = hb_itemPutC( NULL, cProcName );
   pItem2 = hb_itemPutC( NULL, cText1 );
   pResult = hb_itemDoC( "TEST_COMBINE", 2, pItem1, pItem2 );
 
   // Способ 1: Получить указатель, но возможно строку соберёт GC...
-  rawResult = hb_itemGetCPtr(pResult);
+  rawResult = (char*) hb_itemGetCPtr(pResult);
 
   // Способ 2: Сделать копию но потом понадобится вызывать высвобождение буфера!
   //rawResult = hb_itemGetC(pResult);
@@ -106,7 +124,7 @@ REQUEST DBFCDX, DBFFPT
 
 FUNCTION DBF_USE(cAlias)
   LOCAL bError := ErrorBlock( {|e| Break(e) } )
-  ? "DBF_USE: ", ValType(cAlias), cAlias
+  // ? "DBF_USE: ", ValType(cAlias), cAlias
   BEGIN SEQUENCE 
     IF LEN(cAlias) != 0
       USE (cAlias)
@@ -127,8 +145,34 @@ FUNCTION DBF_CREATE(cName, cJson)
   dbCreate(cName, xStruct)
 RETURN NIL
 
+FUNCTION DBF_GOTO(nIndex)
+  LOCAL bError := ErrorBlock( {|e| Break(e) } )
+  BEGIN SEQUENCE 
+    DBGOTO(nIndex)
+  RECOVER USING xError
+    ? "DBF_GOTO FAILED: ", nIndex
+    ? "ERROR: ", xError, HB_ValToExp(xError)
+  ENDSEQUENCE
+RETURN NIL
+
 FUNCTION DBF_APPEND()
   APPEND BLANK
+RETURN NIL
+
+FUNCTION DBF_SET_VALUES(cJson)
+  LOCAL bError := ErrorBlock( {|e| Break(e) } )
+  LOCAL aData, nI, aRecord, nField
+  BEGIN SEQUENCE 
+    hb_jsonDecode(cJson, @aData)
+    FOR nI := 1 TO LEN(aData)
+      aRecord := aData[nI]
+      nField := FIELDPOS(aRecord[1])
+      FIELDPUT(nField, aRecord[2])
+    NEXT
+  RECOVER USING xError
+    ? "DB_SET_VALUES FAILED: ", cJson
+    ? "ERROR: ", xError, HB_ValToExp(xError)
+  ENDSEQUENCE
 RETURN NIL
 
 function TEST_COMBINE(cArg1, cArg2)

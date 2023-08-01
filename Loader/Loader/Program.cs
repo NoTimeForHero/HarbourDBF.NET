@@ -16,24 +16,35 @@ namespace Loader
         [STAThread]
         static void Main()
         {
-            /*
-            Application.EnableVisualStyles();
-            Application.SetCompatibleTextRenderingDefault(false);
-            Application.Run(new Form1());
-            */
-            //var mixed = TestLibrary.Test1("Hello", "world");
-            //Console.WriteLine("C#: " + mixed);
-
             DbfHarbour.Create("test44", new[]
             {
-                new FieldType("LOGIN", "C", 16, 0),
                 new FieldType("USER", "C", 16, 0),
+                new FieldType("AGE", "N", 8, 0),
                 new FieldType("DATA1", "M", 10, 0),
             });
+
+            // Открываем созданный справочник
             DbfHarbour.Use("test44");
+
+            // Создаём Запись 1
             DbfHarbour.Append();
+            DbfHarbour.SetValues(new() {{"USER","Victor"},{"AGE",36}});
+
+            // Создаём Запись 2
             DbfHarbour.Append();
-            DbfHarbour.Append();
+            DbfHarbour.SetValues(new() { { "USER", "Sergey" }, { "AGE", 42 } });
+
+            // Модифицируем запись 1
+            DbfHarbour.GoTo(1);
+            DbfHarbour.SetValues(new() {{ "DATA1", "Some example data..." }});
+
+            for (var i = 0; i < 100; i++)
+            {
+                DbfHarbour.Append();
+                DbfHarbour.SetValues(new() { { "USER", $"Subject #{i+1}" }, { "AGE", 18 } });
+            }
+
+            // Закрываем справочник
             DbfHarbour.Use(null);
 
             Console.WriteLine("Press any key to exit...");
