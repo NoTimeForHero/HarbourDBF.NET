@@ -5,6 +5,8 @@
 #include "hbmemvar.ch"
 #include "hbver.ch"
 
+#define CRLF CHR(13) + CHR(10)
+
 *-----------------------------------------------------------------------------*
 FUNCTION DebugErrorMessage( oError )
     *-----------------------------------------------------------------------------*
@@ -47,7 +49,9 @@ FUNCTION DebugErrorMessage( oError )
     
        IF ValType( oError:args ) == "A"
           cMessage += CRLF
-          cMessage += "   Args:" + CRLF
+          cMessage += "Args:" + CRLF
+          cMessage += HB_ValToExp(oError:args)
+          /*
           FOR n := 1 TO Len( oError:args )
              cMessage += ;
                 "     [" + hb_ntos( n, 2 ) + "] = " + ValType( oError:args[ n ] ) + ;
@@ -55,6 +59,7 @@ FUNCTION DebugErrorMessage( oError )
                 iif( ValType( oError:args[ n ] ) == "A", " length: " + ;
                 hb_ntos( Len( oError:args[ n ] ) ), "" ) + iif( n < Len( oError:args ), CRLF, "" )
           NEXT
+          */
        ENDIF
     
     RETURN cMessage

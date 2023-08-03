@@ -25,8 +25,9 @@ namespace Loader
 
             var error1 = DbfHarbour.GetLastError();
             // Открываем созданный справочник
-            DbfHarbour.Use("test4423");
+            DbfHarbour.Use("test44");
             var error = DbfHarbour.GetLastError();
+            if (error != null) throw new Exception(error);
 
             // Создаём Запись 1
             DbfHarbour.Append();
