@@ -1,20 +1,16 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
-using System.Windows.Forms;
-using Loader.Data;
-using Loader.External;
+using HarbourDBF.NET;
+using HarbourDBF.NET.Data;
 
-namespace Loader
+namespace Example
 {
-    internal static class Program
+    internal class Program
     {
-        /// <summary>
-        /// Главная точка входа для приложения.
-        /// </summary>
-        [STAThread]
-        static void Main()
+        static void Main(string[] args)
         {
             DbfHarbour.Create("test44", new[]
             {
@@ -31,7 +27,7 @@ namespace Loader
 
             // Создаём Запись 1
             DbfHarbour.Append();
-            DbfHarbour.SetValues(new() {{"USER","Victor"},{"AGE",36}});
+            DbfHarbour.SetValues(new() { { "USER", "Victor" }, { "AGE", 36 } });
 
 
             // Создаём Запись 2
@@ -40,14 +36,14 @@ namespace Loader
 
             // Модифицируем запись 1
             DbfHarbour.GoTo(1);
-            DbfHarbour.SetValues(new() {{ "DATA1", "Some example data..." }});
+            DbfHarbour.SetValues(new() { { "DATA1", "Some example data..." } });
             error = DbfHarbour.GetLastError();
             if (!string.IsNullOrEmpty(error)) throw new Exception(error);
 
             for (var i = 0; i < 100; i++)
             {
                 DbfHarbour.Append();
-                DbfHarbour.SetValues(new() { { "USER", $"Subject #{i+1}" }, { "AGE", 18 } });
+                DbfHarbour.SetValues(new() { { "USER", $"Subject #{i + 1}" }, { "AGE", 18 } });
             }
 
             // Закрываем справочник

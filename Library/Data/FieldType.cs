@@ -1,8 +1,10 @@
-﻿// File: FieldType.cs
-// Created by NoTimeForHero, 2023
-// Distributed under the Apache License 2.0
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
 
-namespace Loader.Data
+namespace HarbourDBF.NET.Data
 {
     public struct FieldType
     {
