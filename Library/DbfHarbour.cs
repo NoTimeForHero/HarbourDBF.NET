@@ -17,10 +17,8 @@ namespace HarbourDBF.NET
 
         // TODO: Добавить следующие методы
         // 1. DbSelectArea(cAliasName) - переключиться на указанный алиас
-        // 2. DbRLock([xRecNo]) - блокировка активной записи (по умолчанию активной или xRecNo)
-        // 3. DbRUnlock([xRecNo]) - разблокировка
-        // 4. DbCommit() - сброс изменений на диск
-        // 5. DbCloseArea() - закрыть активную DbArea
+        // 2. DbCommit() - сброс изменений на диск
+        // 3. DbCloseArea() - закрыть активную DbArea
 
         /// <summary>
         /// Открытие файла DBF
@@ -79,5 +77,13 @@ namespace HarbourDBF.NET
             var json = JsonConvert.SerializeObject(raw);
             _SetValues(json);
         }
+
+        /// <summary>
+        /// Установить блокировку на конкретной записи
+        /// </summary>
+        /// <param name="recordNumber">Номер записи, если -1 значит берём последнюю из RecNo()</param>
+        /// <param name="unlock">Если true то запись будет разблокирована</param>
+        [DllImport(DllName, EntryPoint = "DBF_RECORD_LOCK", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        public static extern void RecordLock(int recordNumber = -1, bool unlock = false);
     }
 }

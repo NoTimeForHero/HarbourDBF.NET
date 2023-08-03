@@ -58,4 +58,8 @@
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <PropertyGroup>
+    <PostBuildEvent>powershell.exe $(SolutionDir)\HarbourLibrary\compile.ps1
+copy $(SolutionDir)\HarbourLibrary\hbdbf.dll $(TargetDir)</PostBuildEvent>
+  </PropertyGroup>
 </Project>

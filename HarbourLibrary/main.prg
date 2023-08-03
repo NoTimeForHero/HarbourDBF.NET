@@ -48,6 +48,20 @@ FUNCTION DBF_SET_VALUES(cJson)
   NEXT
 RETURN NIL
 
+FUNCTION DBF_SELECTAREA(cAlias)
+  DbSelectArea(cAlias)
+RETURN NIL
+
+// Обёртка потому что DbRLock не вызывается из C кода
+FUNCTION DBF_RECORD_LOCK(nRecord, lUnlock)
+  nRecord := IIF(nRecord == -1, RecNo(), nRecord)
+  IF lUnlock
+    DbRUnlock(nRecord)
+  ELSE
+    DbRLock(nRecord)
+  ENDIF
+RETURN NIL
+
 FUNCTION ERROR_PROCEDURE(oErr)
   LOCAL nI, cText, cLine
   cText := DebugErrorMessage(oErr) + CLRF
@@ -64,7 +78,15 @@ RETURN NIL
 
 FUNCTION INIT_LIBRARY()
   LOCAL bError := ErrorBlock( {|e| ERROR_PROCEDURE(e) } )
-  ? "Library initialized!"
+  ? "[HbDBF] Library initialized!" + CLRF
+RETURN NIL
+
+FUNCTION TEST244()
+  LOCAL aData := DbRLockList(), nI
+  //dbRLock(21)
+  FOR nI := 1 TO 1
+    ? HB_ValToExp(aData)
+  NEXT
 RETURN NIL
 
 #pragma BEGINDUMP
@@ -160,6 +182,24 @@ HB_EXPORT void* _export DBF_CREATE(const char* cDatabaseName, const char* cJson)
   hb_itemDoC( "DBF_CREATE", 2, pName, pJson);
   hb_itemRelease( pName );
   hb_itemRelease( pJson );
+  return NULL;
+}
+
+HB_EXPORT void* _export DBF_SELECT_AREA(const char* cAlias)
+{
+  PHB_ITEM pAlias = hb_itemPutC( NULL, cAlias );
+  hb_itemDoC( "DBSELECTAREA", 1, pAlias);
+  hb_itemRelease( pAlias );
+  return NULL;
+}
+
+HB_EXPORT void* _export DBF_RECORD_LOCK(long recordNumber, BOOL isUnlock)
+{
+  PHB_ITEM pRecord = hb_itemPutNL( NULL, recordNumber );
+  PHB_ITEM pUnlock = hb_itemPutL( NULL, isUnlock );
+  hb_itemDoC( "DBF_RECORD_LOCK", 2, pRecord, pUnlock);
+  hb_itemRelease( pRecord );
+  hb_itemRelease( pUnlock );
   return NULL;
 }
 
