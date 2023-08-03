@@ -14,6 +14,7 @@ RETURN cLastError
 FUNCTION DBF_USE(cFile, cAlias, lExclusive, cCodepage)
   LOCAL cRdd := RddSetDefault()
   cCodepage := IIF(LEN(cCodepage) == 0, "RU866", cCodepage)
+  // ? HB_ValToExp({cRdd, cFile, cAlias, lExclusive, cCodepage})
   IF LEN(cFile) != 0
     DbUseArea(.F., cRdd, cFile, cAlias, !lExclusive, .F., cCodepage)
   ELSE
@@ -123,10 +124,13 @@ HB_EXPORT void* _export DBF_GET_LAST_ERROR()
   return rawResult;
 }
 
-HB_EXPORT void* _export DBF_USE(const char* cDatabaseName)
+HB_EXPORT void* _export DBF_USE(const char* cDatabaseName, const char* cAlias, BOOL lExclusive, const char * cCodepage)
 {
   PHB_ITEM pName = hb_itemPutC( NULL, cDatabaseName );
-  hb_itemDoC( "DBF_USE", 1, pName);
+  PHB_ITEM pAlias = hb_itemPutC( NULL, cAlias );
+  PHB_ITEM pCodepage = hb_itemPutC( NULL, cCodepage );
+  PHB_ITEM pExclusive = hb_itemPutL( NULL, lExclusive );
+  hb_itemDoC( "DBF_USE", 4, pName, pAlias, pExclusive, pCodepage);
   hb_itemRelease( pName );
   return NULL;
 }

@@ -23,15 +23,16 @@ namespace Loader
                 new FieldType("DATA1", "M", 10, 0),
             });
 
-            var error1 = DbfHarbour.GetLastError();
-            // Открываем созданный справочник
-            DbfHarbour.Use("test44");
             var error = DbfHarbour.GetLastError();
-            if (error != null) throw new Exception(error);
+            // Открываем созданный справочник
+            DbfHarbour.Use("test44", "TEST", true);
+            error = DbfHarbour.GetLastError();
+            if (!string.IsNullOrEmpty(error)) throw new Exception(error);
 
             // Создаём Запись 1
             DbfHarbour.Append();
             DbfHarbour.SetValues(new() {{"USER","Victor"},{"AGE",36}});
+
 
             // Создаём Запись 2
             DbfHarbour.Append();
@@ -40,6 +41,8 @@ namespace Loader
             // Модифицируем запись 1
             DbfHarbour.GoTo(1);
             DbfHarbour.SetValues(new() {{ "DATA1", "Some example data..." }});
+            error = DbfHarbour.GetLastError();
+            if (!string.IsNullOrEmpty(error)) throw new Exception(error);
 
             for (var i = 0; i < 100; i++)
             {
@@ -48,7 +51,7 @@ namespace Loader
             }
 
             // Закрываем справочник
-            DbfHarbour.Use(null);
+            //DbfHarbour.Use(null);
 
             Console.WriteLine("Press any key to exit...");
             Console.ReadKey();
