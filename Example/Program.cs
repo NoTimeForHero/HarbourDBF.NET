@@ -21,32 +21,20 @@ namespace Example
             DbfHarbour.Create("test45",
                 new[] { new FieldType("TEST", "C", 16, 0), });
 
-            // ReSharper disable once JoinDeclarationAndInitializer
-            string error;
-
             // Открываем созданный справочник
             DbfHarbour.Use("test44", "TEST", false);
             DbfHarbour.Use("test45", "TEST3", false);
 
-            error = DbfHarbour.GetLastError();
-            if (!string.IsNullOrEmpty(error)) throw new Exception(error);
-
             DbfHarbour.SelectArea("TEST");
 
-            error = DbfHarbour.GetLastError();
-            if (!string.IsNullOrEmpty(error)) throw new Exception(error);
 
             // Создаём Запись 1
             DbfHarbour.Append();
             DbfHarbour.SetValues(new() { { "USER", "Victor" }, { "AGE", 36 } });
-            error = DbfHarbour.GetLastError();
-            if (!string.IsNullOrEmpty(error)) throw new Exception(error);
 
             // Создаём Запись 2
             DbfHarbour.Append();
             DbfHarbour.SetValues(new() { { "USER", "Sergey" }, { "AGE", 42 } });
-            error = DbfHarbour.GetLastError();
-            if (!string.IsNullOrEmpty(error)) throw new Exception(error);
 
             DbfHarbour.Commit();
             Console.WriteLine("Three records write?");
@@ -58,15 +46,11 @@ namespace Example
                 DbfHarbour.SetValues(new() { { "USER", $"Subject #{i + 1}" }, { "AGE", 18 } });
             }
 
-            if (!string.IsNullOrEmpty(error)) throw new Exception(error);
-
             // Модифицируем запись 21
             DbfHarbour.GoTo(21);
             DbfHarbour.RecordLock();
             DbfHarbour.SetValues(new() { { "DATA1", "Some example data..." } });
             DbfHarbour.RecordLock(unlock: true);
-            error = DbfHarbour.GetLastError();
-            if (!string.IsNullOrEmpty(error)) throw new Exception(error);
 
             Console.WriteLine("Have not memo data?");
             Console.ReadKey();

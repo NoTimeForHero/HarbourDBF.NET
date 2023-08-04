@@ -46,6 +46,7 @@
   <ItemGroup>
     <Compile Include="Data\FieldType.cs" />
     <Compile Include="DbfHarbour.cs" />
+    <Compile Include="HarbourException.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
