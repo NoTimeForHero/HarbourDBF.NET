@@ -15,26 +15,41 @@ namespace HarbourDBF.NET
 
         // TODO: Добавить GetLastError для каждого поля
 
-        // TODO: Добавить следующие методы
-        // 1. DbSelectArea(cAliasName) - переключиться на указанный алиас
-        // 2. DbCommit() - сброс изменений на диск
-        // 3. DbCloseArea() - закрыть активную DbArea
-
         /// <summary>
         /// Открытие файла DBF
         /// </summary>
         /// <param name="databaseName">Имя файла который будет открыт без расширения (например test откроет test.dbf с test.fpt)</param>
-        /// <param name="cAlias">Внутренний алиас для открытия и переключения между несколькими открытыми файлами</param>
-        /// <param name="lExclusive">Открывать в эксклюзивном режиме</param>
-        /// <param name="cCodepage">Кодировка файла (по умолчанию CP866)</param>
+        /// <param name="alias">Внутренний алиас для открытия и переключения между несколькими открытыми файлами</param>
+        /// <param name="exclusive">Открывать в эксклюзивном режиме</param>
+        /// <param name="codepage">Кодировка файла (по умолчанию CP866)</param>
         [DllImport(DllName, EntryPoint = "DBF_USE", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
-        public static extern IntPtr Use(string databaseName, string cAlias, bool lExclusive = false, string cCodepage = "");
+        public static extern IntPtr Use(string databaseName, string alias, bool exclusive = false, string codepage = "");
+
+        /// <summary>
+        /// Переключиться на указанный алиас
+        /// </summary>
+        /// <param name="alias">Название алиаса</param>
+        [DllImport(DllName, EntryPoint = "DBF_SELECT_AREA", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        public static extern IntPtr SelectArea(string alias);
+
+        /// <summary>
+        /// Закрыть файл БД для указанного алиаса
+        /// </summary>
+        /// <param name="alias">Название алиаса</param>
+        [DllImport(DllName, EntryPoint = "DBF_CLOSE_AREA", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        public static extern IntPtr CloseArea(string alias);
 
         /// <summary>
         /// Добавить новую запись в конец файла
         /// </summary>
         [DllImport(DllName, EntryPoint = "DBF_APPEND", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         public static extern IntPtr Append();
+
+        /// <summary>
+        /// Записать изменения на жесткий диск
+        /// </summary>
+        [DllImport(DllName, EntryPoint = "DBF_COMMIT", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        public static extern IntPtr Commit();
 
         /// <summary>
         /// Перейти к указанной записи

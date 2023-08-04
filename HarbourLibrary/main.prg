@@ -16,7 +16,7 @@ FUNCTION DBF_USE(cFile, cAlias, lExclusive, cCodepage)
   cCodepage := IIF(LEN(cCodepage) == 0, "RU866", cCodepage)
   // ? HB_ValToExp({cRdd, cFile, cAlias, lExclusive, cCodepage})
   IF LEN(cFile) != 0
-    DbUseArea(.F., cRdd, cFile, cAlias, !lExclusive, .F., cCodepage)
+    DbUseArea(.T., cRdd, cFile, cAlias, !lExclusive, .F., cCodepage)
   ELSE
     USE
   ENDIF
@@ -36,6 +36,15 @@ RETURN NIL
 
 FUNCTION DBF_APPEND()
   APPEND BLANK
+RETURN NIL
+
+FUNCTION DBF_COMMIT()
+  DbCommit()
+RETURN NIL
+
+FUNCTION DBF_CLOSE_AREA(cAlias)
+  DbSelectArea(cAlias)
+  DbCloseArea()
 RETURN NIL
 
 FUNCTION DBF_SET_VALUES(cJson)
@@ -163,6 +172,12 @@ HB_EXPORT void* _export DBF_APPEND()
   return NULL;
 }
 
+HB_EXPORT void* _export DBF_COMMIT()
+{
+  hb_itemDoC( "DBF_COMMIT", 0);
+  return NULL;
+}
+
 HB_EXPORT void* _export DBF_SET_VALUES(const char * cJson)
 {
   //MessageBox( 0, cJson, "1", 0 );  
@@ -189,6 +204,14 @@ HB_EXPORT void* _export DBF_SELECT_AREA(const char* cAlias)
 {
   PHB_ITEM pAlias = hb_itemPutC( NULL, cAlias );
   hb_itemDoC( "DBSELECTAREA", 1, pAlias);
+  hb_itemRelease( pAlias );
+  return NULL;
+}
+
+HB_EXPORT void* _export DBF_CLOSE_AREA(const char* cAlias)
+{
+  PHB_ITEM pAlias = hb_itemPutC( NULL, cAlias );
+  hb_itemDoC( "DBF_CLOSE_AREA", 1, pAlias);
   hb_itemRelease( pAlias );
   return NULL;
 }

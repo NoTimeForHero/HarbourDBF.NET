@@ -18,12 +18,20 @@ namespace Example
                 new FieldType("AGE", "N", 8, 0),
                 new FieldType("DATA1", "M", 10, 0),
             });
+            DbfHarbour.Create("test45",
+                new[] { new FieldType("TEST", "C", 16, 0), });
 
             // ReSharper disable once JoinDeclarationAndInitializer
             string error;
 
             // Открываем созданный справочник
             DbfHarbour.Use("test44", "TEST", false);
+            DbfHarbour.Use("test45", "TEST3", false);
+
+            error = DbfHarbour.GetLastError();
+            if (!string.IsNullOrEmpty(error)) throw new Exception(error);
+
+            DbfHarbour.SelectArea("TEST");
 
             error = DbfHarbour.GetLastError();
             if (!string.IsNullOrEmpty(error)) throw new Exception(error);
@@ -40,6 +48,10 @@ namespace Example
             error = DbfHarbour.GetLastError();
             if (!string.IsNullOrEmpty(error)) throw new Exception(error);
 
+            DbfHarbour.Commit();
+            Console.WriteLine("Three records write?");
+            Console.ReadKey();
+
             for (var i = 0; i < 100; i++)
             {
                 DbfHarbour.Append();
@@ -55,6 +67,10 @@ namespace Example
             DbfHarbour.RecordLock(unlock: true);
             error = DbfHarbour.GetLastError();
             if (!string.IsNullOrEmpty(error)) throw new Exception(error);
+
+            Console.WriteLine("Have not memo data?");
+            Console.ReadKey();
+            DbfHarbour.Commit();
 
             // Закрываем справочник
             //DbfHarbour.Use(null);
