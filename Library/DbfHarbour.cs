@@ -47,9 +47,9 @@ namespace HarbourDBF.NET
         /// Закрыть файл БД для указанного алиаса
         /// </summary>
         /// <param name="alias">Название алиаса</param>
-        public static void CloseArea(string alias)
+        public static void CloseArea(string alias = null)
         {
-            _SelectArea(alias);
+            _CloseArea(alias);
             if (GetLastError(out var error)) throw new HarbourException(error);
         }
 
@@ -131,6 +131,26 @@ namespace HarbourDBF.NET
             if (GetLastError(out var error)) throw new HarbourException(error);
         }
 
+        [DllImport(DllName, EntryPoint = "DBF_GET_VALUES", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        private static extern IntPtr _GetValues(string json);
+        /// <summary>
+        /// Получить значения полей для указанных записей
+        /// <para>
+        /// Строковые типы возвращаются вместе с пробелами, поэтому не забудьте применить к ним <see cref="string.Trim()"/>
+        /// </para>
+        /// </summary>
+        /// <param name="fieldsNames">Список полей из которых нужны значения</param>
+        public static IEnumerable<object> GetValues(IEnumerable<string> fieldsNames)
+        {
+            // TODO: Приведение сложных типов вроде DateTime к корректному Harbour формату
+            var inputJson = JsonConvert.SerializeObject(fieldsNames);
+            var outputJson = Marshal.PtrToStringAnsi(_GetValues(inputJson));
+            if (GetLastError(out var error)) throw new HarbourException(error);
+            if (outputJson == null) throw new NullReferenceException("GetValues response is empty!");
+            var entries = JsonConvert.DeserializeObject<object[]>(outputJson);
+            return entries ?? Array.Empty<object>();
+        }
+
         [DllImport(DllName, EntryPoint = "DBF_RECORD_LOCK", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         private static extern void _RecordLock(int recordNumber, bool unlock);
         /// <summary>
@@ -143,5 +163,18 @@ namespace HarbourDBF.NET
             _RecordLock(recordNumber, unlock);
             if (GetLastError(out var error)) throw new HarbourException(error);
         }
+
+        [DllImport(DllName, EntryPoint = "DBF_RECORDS", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        private static extern int RecordsCounters(bool current);
+
+        /// <summary>
+        /// Получить суммарное количество записей в БД
+        /// </summary>
+        public static int TotalRecords => RecordsCounters(false);
+
+        /// <summary>
+        /// Получить номер записи на которой находится указатель
+        /// </summary>
+        public static int ActiveRecord => RecordsCounters(true);
     }
 }

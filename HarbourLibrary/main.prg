@@ -43,9 +43,24 @@ FUNCTION DBF_COMMIT()
 RETURN NIL
 
 FUNCTION DBF_CLOSE_AREA(cAlias)
-  DbSelectArea(cAlias)
+  IF LEN(cAlias) > 0
+    DbSelectArea(cAlias)
+  ENDIF
   DbCloseArea()
 RETURN NIL
+
+FUNCTION DBF_GET_VALUES(cJson)
+  LOCAL aFields, nI, cField, nField
+  LOCAL aResult := {}, cResult
+  hb_jsonDecode(cJson, @aFields)
+  FOR nI := 1 TO LEN(aFields)
+    cField := aFields[nI]
+    nField := FIELDPOS(cField)
+    AADD(aResult, FIELDGET(nField))
+    //AADD(aResult, {cField, FIELDGET(nField)})
+  NEXT
+  cResult := hb_jsonEncode(aResult)
+RETURN cResult
 
 FUNCTION DBF_SET_VALUES(cJson)
   LOCAL aData, nI, aRecord, nField
@@ -55,6 +70,14 @@ FUNCTION DBF_SET_VALUES(cJson)
     nField := FIELDPOS(aRecord[1])
     FIELDPUT(nField, aRecord[2])
   NEXT
+RETURN NIL
+
+FUNCTION DBF_RECORDS(lCurrent)
+  IF lCurrent
+    RETURN RecNo()
+  ELSE
+    RETURN RecCount()
+  ENDIF
 RETURN NIL
 
 FUNCTION DBF_SELECTAREA(cAlias)
@@ -178,6 +201,16 @@ HB_EXPORT void* _export DBF_COMMIT()
   return NULL;
 }
 
+HB_EXPORT void* _export DBF_GET_VALUES(const char * cJson)
+{
+  PHB_ITEM pJson = hb_itemPutC( NULL, cJson );
+  PHB_ITEM pResult = hb_itemDoC( "DBF_GET_VALUES", 1, pJson);
+  char * rawResult = (char*) hb_itemGetCPtr(pResult);
+  hb_itemRelease( pJson );
+  hb_itemRelease( pResult );
+  return rawResult;
+}
+
 HB_EXPORT void* _export DBF_SET_VALUES(const char * cJson)
 {
   //MessageBox( 0, cJson, "1", 0 );  
@@ -226,5 +259,15 @@ HB_EXPORT void* _export DBF_RECORD_LOCK(long recordNumber, BOOL isUnlock)
   return NULL;
 }
 
+
+HB_EXPORT long _export DBF_RECORDS(BOOL currentRecord)
+{
+  PHB_ITEM pCurrent = hb_itemPutL( NULL, currentRecord );
+  PHB_ITEM pResult = hb_itemDoC( "DBF_RECORDS", 1, pCurrent);
+  long nRecords = hb_itemGetNL(pResult);
+  hb_itemRelease( pCurrent );
+  hb_itemRelease( pResult );
+  return nRecords;
+}
 
 #pragma ENDDUMP

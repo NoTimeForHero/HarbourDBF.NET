@@ -36,10 +36,6 @@ namespace Example
             DbfHarbour.Append();
             DbfHarbour.SetValues(new() { { "USER", "Sergey" }, { "AGE", 42 } });
 
-            DbfHarbour.Commit();
-            Console.WriteLine("Three records write?");
-            Console.ReadKey();
-
             for (var i = 0; i < 100; i++)
             {
                 DbfHarbour.Append();
@@ -52,9 +48,20 @@ namespace Example
             DbfHarbour.SetValues(new() { { "DATA1", "Some example data..." } });
             DbfHarbour.RecordLock(unlock: true);
 
-            Console.WriteLine("Have not memo data?");
-            Console.ReadKey();
-            DbfHarbour.Commit();
+            DbfHarbour.GoTo(1);
+            var values = DbfHarbour.GetValues(new[] { "USER", "AGE" });
+            Console.WriteLine("Запись 1: " + string.Join(", ", values.Select(x => x.ToString())));
+
+            DbfHarbour.GoTo(2);
+            var values2 = DbfHarbour.GetValues(new[] { "USER", "AGE" });
+            Console.WriteLine("Запись 2: " + string.Join(", ", values2.Select(x => x.ToString())));
+
+            var total = DbfHarbour.TotalRecords;
+            var active = DbfHarbour.ActiveRecord;
+
+            Console.WriteLine($"Указатель находится на записе {active} из {total}");
+
+            DbfHarbour.CloseArea();
 
             // Закрываем справочник
             //DbfHarbour.Use(null);
