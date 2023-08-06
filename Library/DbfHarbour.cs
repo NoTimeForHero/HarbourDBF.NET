@@ -92,13 +92,18 @@ namespace HarbourDBF.NET
         [DllImport(DllName, EntryPoint = "DBF_GET_LAST_ERROR", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         private static extern IntPtr _GetLastError();
 
+        [DllImport(DllName, EntryPoint = "DBF_UNSAFE_FREE", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        private static extern IntPtr UnsafeFree(IntPtr target);
+
         /// <summary>
         /// Получить сообщение об ошибке последней операции
         /// </summary>
         /// <returns>Сообщение об ошибке</returns>
         public static bool GetLastError(out string error)
         {
-            error = Marshal.PtrToStringAnsi(_GetLastError());
+            var ptrText = _GetLastError();
+            error = Marshal.PtrToStringAnsi(ptrText);
+            UnsafeFree(ptrText);
             return !string.IsNullOrEmpty(error);
         }
 
@@ -144,7 +149,9 @@ namespace HarbourDBF.NET
         {
             // TODO: Приведение сложных типов вроде DateTime к корректному Harbour формату
             var inputJson = JsonConvert.SerializeObject(fieldsNames);
-            var outputJson = Marshal.PtrToStringAnsi(_GetValues(inputJson));
+            var charPtr = _GetValues(inputJson);
+            var outputJson = Marshal.PtrToStringAnsi(charPtr);
+            UnsafeFree(charPtr);
             if (GetLastError(out var error)) throw new HarbourException(error);
             if (outputJson == null) throw new NullReferenceException("GetValues response is empty!");
             var entries = JsonConvert.DeserializeObject<object[]>(outputJson);

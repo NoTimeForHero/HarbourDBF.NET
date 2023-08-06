@@ -25,8 +25,11 @@ namespace Example
             DbfHarbour.Use("test44", "TEST", false);
             DbfHarbour.Use("test45", "TEST3", false);
 
-            DbfHarbour.SelectArea("TEST");
+            // Баг был найден при помощи другого бенчмарка
+            //DbfHarbour.Use("columns20", "TEST99", true);
+            //var test = DbfHarbour.GetValues(new[] { "Age" });
 
+            DbfHarbour.SelectArea("TEST");
 
             // Создаём Запись 1
             DbfHarbour.Append();
@@ -62,9 +65,6 @@ namespace Example
             Console.WriteLine($"Указатель находится на записе {active} из {total}");
 
             DbfHarbour.CloseArea();
-
-            // Закрываем справочник
-            //DbfHarbour.Use(null);
 
             Console.WriteLine("Press any key to exit...");
             Console.ReadKey();

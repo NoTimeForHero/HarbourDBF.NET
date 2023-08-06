@@ -144,6 +144,7 @@ RETURN NIL
  hb_itemFreeC(rawResult); // Вызов hb_xfree с дополнительным логгингом
 */
 
+
 BOOL WINAPI DllMain( HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved )       //This Works!
 {
   HB_SYMBOL_UNUSED( hinstDLL );
@@ -174,7 +175,7 @@ HB_EXPORT void* _export DBF_GOTO(long recordNumber)
 HB_EXPORT void* _export DBF_GET_LAST_ERROR()
 {
   PHB_ITEM pValue = hb_itemDoC( "DBF_GET_LAST_ERROR", 0);
-  char * rawResult = (char*) hb_itemGetCPtr(pValue);
+  char * rawResult = (char*) hb_itemGetC(pValue);
   return rawResult;
 }
 
@@ -205,7 +206,7 @@ HB_EXPORT void* _export DBF_GET_VALUES(const char * cJson)
 {
   PHB_ITEM pJson = hb_itemPutC( NULL, cJson );
   PHB_ITEM pResult = hb_itemDoC( "DBF_GET_VALUES", 1, pJson);
-  char * rawResult = (char*) hb_itemGetCPtr(pResult);
+  char * rawResult = (char*) hb_itemGetC(pResult);
   hb_itemRelease( pJson );
   hb_itemRelease( pResult );
   return rawResult;
@@ -268,6 +269,11 @@ HB_EXPORT long _export DBF_RECORDS(BOOL currentRecord)
   hb_itemRelease( pCurrent );
   hb_itemRelease( pResult );
   return nRecords;
+}
+
+HB_EXPORT void _export DBF_UNSAFE_FREE(char* target)
+{
+  hb_itemFreeC(target);
 }
 
 #pragma ENDDUMP
