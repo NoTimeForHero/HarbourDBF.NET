@@ -8,6 +8,10 @@ REQUEST DBFCDX, DBFFPT
 
 STATIC cLastError := NIL
 
+// ВНИМАНИЕ!
+// Многие функции вроде DbRLock могут не вызываться из C кода
+// Поэтому лучше использовать дополнительную обёртку хоть и ценой производительности
+
 FUNCTION DBF_GET_LAST_ERROR()
 RETURN cLastError
 
@@ -84,7 +88,6 @@ FUNCTION DBF_SELECTAREA(cAlias)
   DbSelectArea(cAlias)
 RETURN NIL
 
-// Обёртка потому что DbRLock не вызывается из C кода
 FUNCTION DBF_RECORD_LOCK(nRecord, lUnlock)
   nRecord := IIF(nRecord == -1, RecNo(), nRecord)
   IF lUnlock
@@ -93,6 +96,21 @@ FUNCTION DBF_RECORD_LOCK(nRecord, lUnlock)
     DbRLock(nRecord)
   ENDIF
 RETURN NIL
+
+FUNCTION DBF_INDEX_LOAD(cIndexFile)
+  OrdListAdd(cIndexFile)
+RETURN NIL
+
+FUNCTION DBF_INDEX_SELECT(nOrder)
+  OrdSetFocus(nOrder)
+RETURN NIL
+
+FUNCTION DBF_INDEX_SEEK(nPosition)
+  DbSeek(nPosition)
+RETURN NIL
+
+FUNCTION DBF_FOUND()
+RETURN Found() 
 
 FUNCTION ERROR_PROCEDURE(oErr)
   LOCAL nI, cText, cLine
@@ -111,6 +129,12 @@ RETURN NIL
 FUNCTION INIT_LIBRARY()
   LOCAL bError := ErrorBlock( {|e| ERROR_PROCEDURE(e) } )
   ? "[HbDBF] Library initialized!" + CLRF
+  REQUEST DBFNTX
+  REQUEST DBFCDX
+  RDDSETDEFAULT( "DBFCDX" )
+  REQUEST HB_CODEPAGE_RU866
+  REQUEST HB_LANG_RU866
+  HB_LANGSELECT("RU866")
 RETURN NIL
 
 FUNCTION TEST244()
@@ -274,6 +298,35 @@ HB_EXPORT long _export DBF_RECORDS(BOOL currentRecord)
 HB_EXPORT void _export DBF_UNSAFE_FREE(char* target)
 {
   hb_itemFreeC(target);
+}
+
+HB_EXPORT void _export DBF_INDEX_LOAD(char* cArg1)
+{
+  PHB_ITEM pArg1 = hb_itemPutC( NULL, cArg1 );
+  hb_itemDoC( "DBF_INDEX_LOAD", 1, pArg1);
+  hb_itemRelease( pArg1 );
+}
+
+HB_EXPORT void _export DBF_INDEX_SELECT(long cArg1)
+{
+  PHB_ITEM pArg1 = hb_itemPutNL( NULL, cArg1 );
+  hb_itemDoC( "DBF_INDEX_SELECT", 1, pArg1);
+  hb_itemRelease( pArg1 );
+}
+
+HB_EXPORT void _export DBF_INDEX_SEEK(long cArg1)
+{
+  PHB_ITEM pArg1 = hb_itemPutNL( NULL, cArg1 );
+  hb_itemDoC( "DBF_INDEX_SEEK", 1, pArg1);
+  hb_itemRelease( pArg1 );
+}
+
+HB_EXPORT HB_BOOL _export DBF_FOUND()
+{
+  PHB_ITEM pResult = hb_itemDoC( "DBF_FOUND", 0);
+  HB_BOOL value = hb_itemGetL( pResult) ;
+  hb_itemRelease( pResult );
+  return value;
 }
 
 #pragma ENDDUMP

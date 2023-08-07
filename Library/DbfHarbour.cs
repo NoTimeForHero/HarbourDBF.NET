@@ -11,10 +11,7 @@ namespace HarbourDBF.NET
 {
     public static class DbfHarbour
     {
-        private const string DllName = "hbdbf.dll";
-
-
-        [DllImport(DllName, EntryPoint = "DBF_USE", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        [DllImport(Constants.DllName, EntryPoint = "DBF_USE", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         private static extern IntPtr _Use(string databaseName, string alias, bool exclusive = false, string codepage = "");
         /// <summary>
         /// Открытие файла DBF
@@ -29,7 +26,7 @@ namespace HarbourDBF.NET
             if (GetLastError(out var error)) throw new HarbourException(error);
         }
 
-        [DllImport(DllName, EntryPoint = "DBF_SELECT_AREA", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        [DllImport(Constants.DllName, EntryPoint = "DBF_SELECT_AREA", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         private static extern IntPtr _SelectArea(string alias);
         /// <summary>
         /// Переключиться на указанный алиас
@@ -41,7 +38,7 @@ namespace HarbourDBF.NET
             if (GetLastError(out var error)) throw new HarbourException(error);
         }
 
-        [DllImport(DllName, EntryPoint = "DBF_CLOSE_AREA", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        [DllImport(Constants.DllName, EntryPoint = "DBF_CLOSE_AREA", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         private static extern IntPtr _CloseArea(string alias);
         /// <summary>
         /// Закрыть файл БД для указанного алиаса
@@ -54,7 +51,7 @@ namespace HarbourDBF.NET
         }
 
 
-        [DllImport(DllName, EntryPoint = "DBF_APPEND", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        [DllImport(Constants.DllName, EntryPoint = "DBF_APPEND", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         private static extern IntPtr _Append();
         /// <summary>
         /// Добавить новую запись в конец файла
@@ -66,7 +63,7 @@ namespace HarbourDBF.NET
         }
 
 
-        [DllImport(DllName, EntryPoint = "DBF_COMMIT", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        [DllImport(Constants.DllName, EntryPoint = "DBF_COMMIT", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         private static extern IntPtr _Commit();
         /// <summary>
         /// Записать изменения на жесткий диск
@@ -77,7 +74,7 @@ namespace HarbourDBF.NET
             if (GetLastError(out var error)) throw new HarbourException(error);
         }
 
-        [DllImport(DllName, EntryPoint = "DBF_GOTO", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        [DllImport(Constants.DllName, EntryPoint = "DBF_GOTO", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         private static extern IntPtr _GoTo(long recordNumber);
         /// <summary>
         /// Перейти к указанной записи
@@ -89,11 +86,8 @@ namespace HarbourDBF.NET
             if (GetLastError(out var error)) throw new HarbourException(error);
         }
 
-        [DllImport(DllName, EntryPoint = "DBF_GET_LAST_ERROR", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        [DllImport(Constants.DllName, EntryPoint = "DBF_GET_LAST_ERROR", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         private static extern IntPtr _GetLastError();
-
-        [DllImport(DllName, EntryPoint = "DBF_UNSAFE_FREE", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
-        private static extern IntPtr UnsafeFree(IntPtr target);
 
         /// <summary>
         /// Получить сообщение об ошибке последней операции
@@ -101,13 +95,11 @@ namespace HarbourDBF.NET
         /// <returns>Сообщение об ошибке</returns>
         public static bool GetLastError(out string error)
         {
-            var ptrText = _GetLastError();
-            error = Marshal.PtrToStringAnsi(ptrText);
-            UnsafeFree(ptrText);
+            error = UnsafeUtils.GetString(_GetLastError());
             return !string.IsNullOrEmpty(error);
         }
 
-        [DllImport(DllName, EntryPoint = "DBF_CREATE", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        [DllImport(Constants.DllName, EntryPoint = "DBF_CREATE", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         private static extern IntPtr _Create(string databaseName, string json);
         /// <summary>
         /// Создать новый DBF файл с указанной структурой
@@ -121,22 +113,24 @@ namespace HarbourDBF.NET
             if (GetLastError(out var error)) throw new HarbourException(error);
         }
 
-        [DllImport(DllName, EntryPoint = "DBF_SET_VALUES", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
-        private static extern IntPtr _SetValues(string json);
+        [DllImport(Constants.DllName, EntryPoint = "DBF_SET_VALUES", CallingConvention = CallingConvention.Cdecl)]
+        private static extern IntPtr _SetValues(byte[] json);
         /// <summary>
         /// Установить значения для указанных полей на активной записи
         /// </summary>
         /// <param name="values">Словарь поле=значение</param>
-        public static void SetValues(Dictionary<string, object> values)
+        /// <param name="enc">Кодировка в которую будет сконвертирован текст</param>
+        public static void SetValues(Dictionary<string, object> values, Encoding enc = null)
         {
             // TODO: Приведение сложных типов вроде DateTime к корректному Harbour формату
             var raw = values.Select(x => new[] { x.Key, x.Value, x.Value.GetType().FullName });
             var json = JsonConvert.SerializeObject(raw);
-            _SetValues(json);
+            var converted = Constants.DefaultEncoding.GetBytes(json);
+            _SetValues(converted);
             if (GetLastError(out var error)) throw new HarbourException(error);
         }
 
-        [DllImport(DllName, EntryPoint = "DBF_GET_VALUES", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        [DllImport(Constants.DllName, EntryPoint = "DBF_GET_VALUES", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         private static extern IntPtr _GetValues(string json);
         /// <summary>
         /// Получить значения полей для указанных записей
@@ -145,20 +139,20 @@ namespace HarbourDBF.NET
         /// </para>
         /// </summary>
         /// <param name="fieldsNames">Список полей из которых нужны значения</param>
-        public static IEnumerable<object> GetValues(IEnumerable<string> fieldsNames)
+        /// <param name="enc">Кодировка в которую будет сконвертирован текст</param>
+        public static IEnumerable<object> GetValues(IEnumerable<string> fieldsNames, Encoding enc = null)
         {
             // TODO: Приведение сложных типов вроде DateTime к корректному Harbour формату
             var inputJson = JsonConvert.SerializeObject(fieldsNames);
-            var charPtr = _GetValues(inputJson);
-            var outputJson = Marshal.PtrToStringAnsi(charPtr);
-            UnsafeFree(charPtr);
+            var raw = _GetValues(inputJson);
+            var outputJson = UnsafeUtils.GetString(raw, enc);
             if (GetLastError(out var error)) throw new HarbourException(error);
             if (outputJson == null) throw new NullReferenceException("GetValues response is empty!");
             var entries = JsonConvert.DeserializeObject<object[]>(outputJson);
             return entries ?? Array.Empty<object>();
         }
 
-        [DllImport(DllName, EntryPoint = "DBF_RECORD_LOCK", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        [DllImport(Constants.DllName, EntryPoint = "DBF_RECORD_LOCK", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         private static extern void _RecordLock(int recordNumber, bool unlock);
         /// <summary>
         /// Установить блокировку на конкретной записи
@@ -171,7 +165,7 @@ namespace HarbourDBF.NET
             if (GetLastError(out var error)) throw new HarbourException(error);
         }
 
-        [DllImport(DllName, EntryPoint = "DBF_RECORDS", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        [DllImport(Constants.DllName, EntryPoint = "DBF_RECORDS", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         private static extern int RecordsCounters(bool current);
 
         /// <summary>
@@ -183,5 +177,56 @@ namespace HarbourDBF.NET
         /// Получить номер записи на которой находится указатель
         /// </summary>
         public static int ActiveRecord => RecordsCounters(true);
+
+        /// <summary>
+        /// Класс со статичекими индексами
+        /// </summary>
+        public static class Indexes
+        {
+            [DllImport(Constants.DllName, EntryPoint = "DBF_INDEX_LOAD", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+            private static extern IntPtr _Load(string indexName);
+            /// <summary>
+            /// Загрузить указанный индекс (например test0.cdx)
+            /// </summary>
+            /// <param name="indexName">Путь до файла с индексом</param>
+            public static void Load(string indexName)
+            {
+                _Load(indexName);
+                if (GetLastError(out var error)) throw new HarbourException(error);
+            }
+
+            [DllImport(Constants.DllName, EntryPoint = "DBF_INDEX_SELECT", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+            private static extern IntPtr _Select(int order);
+            /// <summary>
+            /// Выбрать указанный индекс для дальнейших операций (например Seek)
+            /// </summary>
+            /// <param name="order">Порядковый номер индекса</param>
+            /// <exception cref="HarbourException"></exception>
+            public static void Select(int order)
+            {
+                _Select(order);
+                if (GetLastError(out var error)) throw new HarbourException(error);
+            }
+
+            [DllImport(Constants.DllName, EntryPoint = "DBF_INDEX_SEEK", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+            private static extern IntPtr _Seek(int searchValue);
+            /// <summary>
+            /// Найти для активного индекса <see cref="Select(int)"/> нужное значение колонки (например UserId=4)
+            /// </summary>
+            /// <param name="searchValue">Значение поиска</param>
+            /// <exception cref="HarbourException"></exception>
+            public static void Seek(int searchValue)
+            {
+                _Seek(searchValue);
+                if (GetLastError(out var error)) throw new HarbourException(error);
+            }
+
+            /// <summary>
+            /// Проверка, была ли найдена запись после <see cref="Seek(int)"/>
+            /// </summary>
+            [DllImport(Constants.DllName, EntryPoint = "DBF_FOUND", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+            public static extern bool Found();
+
+        }
     }
 }
