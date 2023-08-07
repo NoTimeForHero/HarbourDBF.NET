@@ -66,6 +66,26 @@ FUNCTION DBF_GET_VALUES(cJson)
   cResult := hb_jsonEncode(aResult)
 RETURN cResult
 
+FUNCTION DBF_GET_VALUES_RANGE(cJson, nBegin, nEnd)
+  LOCAL aFields, nI, nRec, cField, nField
+  LOCAL aResult, cResult
+  LOCAL aRow
+  hb_jsonDecode(cJson, @aFields)
+  DBGOTO(nBegin)
+  aResult := {}
+  FOR nRec := nBegin TO nEnd
+    aRow := {}
+    FOR nI := 1 TO LEN(aFields)
+      cField := aFields[nI]
+      nField := FIELDPOS(cField)
+      AADD(aRow, FIELDGET(nField))
+    NEXT
+    AADD(aResult, aRow)
+    SKIP 1
+  NEXT
+  cResult := hb_jsonEncode(aResult)
+RETURN cResult
+
 FUNCTION DBF_SET_VALUES(cJson)
   LOCAL aData, nI, aRecord, nField
   hb_jsonDecode(cJson, @aData)
@@ -232,6 +252,20 @@ HB_EXPORT void* _export DBF_GET_VALUES(const char * cJson)
   PHB_ITEM pResult = hb_itemDoC( "DBF_GET_VALUES", 1, pJson);
   char * rawResult = (char*) hb_itemGetC(pResult);
   hb_itemRelease( pJson );
+  hb_itemRelease( pResult );
+  return rawResult;
+}
+
+HB_EXPORT void* _export DBF_GET_VALUES_RANGE(const char * cJson, long nBegin, long nEnd)
+{
+  PHB_ITEM pArg1 = hb_itemPutC( NULL, cJson );
+  PHB_ITEM pArg2 = hb_itemPutNL( NULL, nBegin );
+  PHB_ITEM pArg3 = hb_itemPutNL( NULL, nEnd );
+  PHB_ITEM pResult = hb_itemDoC( "DBF_GET_VALUES_RANGE", 3, pArg1, pArg2, pArg3);
+  char * rawResult = (char*) hb_itemGetC(pResult);
+  hb_itemRelease( pArg1 );
+  hb_itemRelease( pArg2 );
+  hb_itemRelease( pArg3 );
   hb_itemRelease( pResult );
   return rawResult;
 }

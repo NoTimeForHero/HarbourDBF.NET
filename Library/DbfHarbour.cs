@@ -130,6 +130,31 @@ namespace HarbourDBF.NET
             if (GetLastError(out var error)) throw new HarbourException(error);
         }
 
+        [DllImport(Constants.DllName, EntryPoint = "DBF_GET_VALUES_RANGE", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        private static extern IntPtr _GetValuesRange(string json, uint begin, uint end);
+
+        /// <summary>
+        /// Получить значения полей для указанных записей
+        /// <para>
+        /// Строковые типы возвращаются вместе с пробелами, поэтому не забудьте применить к ним <see cref="string.Trim()"/>
+        /// </para>
+        /// </summary>
+        /// <param name="fieldsNames">Список полей из которых нужны значения</param>
+        /// <param name="enc">Кодировка в которую будет сконвертирован текст</param>
+        /// <param name="begin">Индекс начала</param>
+        /// <param name="end">Индекс конца</param>
+        public static IEnumerable<object[]> GetValuesRange(IEnumerable<string> fieldsNames, uint begin, uint end, Encoding enc = null)
+        {
+            // TODO: Приведение сложных типов вроде DateTime к корректному Harbour формату
+            var inputJson = JsonConvert.SerializeObject(fieldsNames);
+            var raw = _GetValuesRange(inputJson, begin, end);
+            var outputJson = UnsafeUtils.GetString(raw, enc);
+            if (GetLastError(out var error)) throw new HarbourException(error);
+            if (outputJson == null) throw new NullReferenceException("GetValues response is empty!");
+            var entries = JsonConvert.DeserializeObject<List<object[]>>(outputJson);
+            return entries;
+        }
+
         [DllImport(Constants.DllName, EntryPoint = "DBF_GET_VALUES", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         private static extern IntPtr _GetValues(string json);
         /// <summary>

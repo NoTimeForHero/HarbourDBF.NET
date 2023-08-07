@@ -45,8 +45,7 @@ namespace Example
                 new[] { new FieldType("TEST", "C", 16, 0), });
 
             // Открываем созданный справочник
-            DbfHarbour.Use("test44", "TEST", false);
-            DbfHarbour.Use("test45", "TEST3", false);
+            DbfHarbour.Use("test44", "TEST", true);
 
             // Баг был найден при помощи другого бенчмарка
             //DbfHarbour.Use("columns20", "TEST99", true);
@@ -71,7 +70,7 @@ namespace Example
             // Модифицируем запись 21
             DbfHarbour.GoTo(21);
             DbfHarbour.RecordLock();
-            DbfHarbour.SetValues(new() { { "DATA1", "Some example data..." } });
+            DbfHarbour.SetValues(new() { { "DATA1", "Some example data... " } });
             DbfHarbour.RecordLock(unlock: true);
 
             DbfHarbour.GoTo(1);
@@ -86,6 +85,11 @@ namespace Example
             var active = DbfHarbour.ActiveRecord;
 
             Console.WriteLine($"Указатель находится на записе {active} из {total}");
+
+            DbfHarbour.GoTo(1);
+
+            var range = DbfHarbour.GetValuesRange(
+                new[] { "USER", "AGE" }, 1, (uint)DbfHarbour.TotalRecords);
 
             DbfHarbour.CloseArea();
 
