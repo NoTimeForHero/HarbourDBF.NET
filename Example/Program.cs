@@ -12,7 +12,6 @@ namespace Example
     {
         static void Main(string[] args)
         {
-            /*
             DbfHarbour.Use("city", "REAL1", true);
             DbfHarbour.SelectArea("REAL1");
             DbfHarbour.Indexes.Load("City0.cdx");
@@ -23,14 +22,18 @@ namespace Example
             Console.WriteLine("Нашли запись: " + (found ? "ДА" : "НЕТ"));
             var foundValues = DbfHarbour.GetValues(new[] { "CITY", "KCITY" });
             Console.WriteLine("Нашли: " + string.Join(", ", foundValues.Select(x => x.ToString())));
-            DbfHarbour.Append();
-            DbfHarbour.SetValues(new()
+
+            DbfHarbour.Indexes.Seek(8);
+            if (!DbfHarbour.Indexes.Found())
             {
-                { "KCITY", 8 }, { "CITY", "Кострома" }, { "KVIEW", 1 }
-            });
-            DbfHarbour.Commit();
-            DbfHarbour.CloseArea();
-            */
+                DbfHarbour.Append();
+                DbfHarbour.SetValues(new()
+                {
+                    { "KCITY", 8 }, { "CITY", "Кострома" }, { "KVIEW", 1 }
+                });
+                DbfHarbour.Commit();
+                DbfHarbour.CloseArea();
+            }
 
             DbfHarbour.Create("test44", new[]
             {
