@@ -54,30 +54,34 @@ FUNCTION DBF_CLOSE_AREA(cAlias)
 RETURN NIL
 
 FUNCTION DBF_GET_VALUES(cJson)
-  LOCAL aFields, nI, cField, nField
+  LOCAL aFields, nI, nField
   LOCAL aResult := {}, cResult
   hb_jsonDecode(cJson, @aFields)
   FOR nI := 1 TO LEN(aFields)
-    cField := aFields[nI]
-    nField := FIELDPOS(cField)
+    aFields[nI] := FIELDPOS(aFields[nI])
+  NEXT
+  FOR nI := 1 TO LEN(aFields)
+    nField := aFields[nI]
     AADD(aResult, FIELDGET(nField))
-    //AADD(aResult, {cField, FIELDGET(nField)})
+    //AADD(aResult, {nField, FIELDGET(nField)})
   NEXT
   cResult := hb_jsonEncode(aResult)
 RETURN cResult
 
 FUNCTION DBF_GET_VALUES_RANGE(cJson, nBegin, nEnd)
-  LOCAL aFields, nI, nRec, cField, nField
+  LOCAL aFields, nI, nRec, nField
   LOCAL aResult, cResult
   LOCAL aRow
   hb_jsonDecode(cJson, @aFields)
   DBGOTO(nBegin)
   aResult := {}
+  FOR nI := 1 TO LEN(aFields)
+    aFields[nI] := FIELDPOS(aFields[nI])
+  NEXT
   FOR nRec := nBegin TO nEnd
     aRow := {}
     FOR nI := 1 TO LEN(aFields)
-      cField := aFields[nI]
-      nField := FIELDPOS(cField)
+      nField := aFields[nI]
       AADD(aRow, FIELDGET(nField))
     NEXT
     AADD(aResult, aRow)
