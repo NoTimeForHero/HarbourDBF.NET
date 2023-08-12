@@ -193,6 +193,14 @@ namespace HarbourDBF.NET
         [DllImport(Constants.DllName, EntryPoint = "DBF_RECORDS", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         private static extern int RecordsCounters(bool current);
 
+        [DllImport(Constants.DllName, EntryPoint = "DBF_EOF", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        private static extern bool _EndOfFile();
+
+        /// <summary>
+        /// Определение был ли достигнут конец файла
+        /// </summary>
+        public static bool EndOfFile => _EndOfFile();
+
         /// <summary>
         /// Получить суммарное количество записей в БД
         /// </summary>
@@ -234,16 +242,20 @@ namespace HarbourDBF.NET
             }
 
             [DllImport(Constants.DllName, EntryPoint = "DBF_INDEX_SEEK", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
-            private static extern IntPtr _Seek(int searchValue);
+            private static extern bool _Seek(int searchValue, bool softSeek = false, bool findLast = false);
             /// <summary>
             /// Найти для активного индекса <see cref="Select(int)"/> нужное значение колонки (например UserId=4)
             /// </summary>
             /// <param name="searchValue">Значение поиска</param>
+            /// <param name="softSeek">Если true, то когда запись не найдена указатель будет указывать на ближайшую похожее значение (???) вместо EOF</param>
+            /// <param name="findLast">Вести поиск с конца для одинаковых значений</param>
+            /// <returns><see cref="bool"/>: Результат поиска записи в справочнике</returns>
             /// <exception cref="HarbourException"></exception>
-            public static void Seek(int searchValue)
+            public static bool Seek(int searchValue, bool softSeek = false, bool findLast = false)
             {
-                _Seek(searchValue);
+                var value = _Seek(searchValue, softSeek, findLast);
                 if (GetLastError(out var error)) throw new HarbourException(error);
+                return value;
             }
 
             /// <summary>

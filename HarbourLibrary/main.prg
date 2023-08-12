@@ -129,12 +129,15 @@ FUNCTION DBF_INDEX_SELECT(nOrder)
   OrdSetFocus(nOrder)
 RETURN NIL
 
-FUNCTION DBF_INDEX_SEEK(nPosition)
-  DbSeek(nPosition)
+FUNCTION DBF_INDEX_SEEK(nPosition, lSoftSeek, lFindLast)
+  DbSeek(nPosition, lSoftSeek, lFindLast)
 RETURN NIL
 
 FUNCTION DBF_FOUND()
 RETURN Found() 
+
+FUNCTION DBF_EOF()
+RETURN EOF() 
 
 FUNCTION ERROR_PROCEDURE(oErr)
   LOCAL nI, cText, cLine
@@ -352,16 +355,31 @@ HB_EXPORT void _export DBF_INDEX_SELECT(long cArg1)
   hb_itemRelease( pArg1 );
 }
 
-HB_EXPORT void _export DBF_INDEX_SEEK(long cArg1)
+HB_EXPORT HB_BOOL _export DBF_INDEX_SEEK(long arg1, HB_BOOL arg2, HB_BOOL arg3)
 {
-  PHB_ITEM pArg1 = hb_itemPutNL( NULL, cArg1 );
-  hb_itemDoC( "DBF_INDEX_SEEK", 1, pArg1);
+  PHB_ITEM pArg1 = hb_itemPutNL( NULL, arg1 );
+  PHB_ITEM pArg2 = hb_itemPutL( NULL, arg2 );
+  PHB_ITEM pArg3 = hb_itemPutL( NULL, arg3 );
+  PHB_ITEM pResult = hb_itemDoC( "DBF_INDEX_SEEK", 3, pArg1, pArg2, pArg3);
+  HB_BOOL value = hb_itemGetL( pResult) ;
   hb_itemRelease( pArg1 );
+  hb_itemRelease( pArg2 );
+  hb_itemRelease( pArg3 );
+  hb_itemRelease( pResult );
+  return value;
 }
 
 HB_EXPORT HB_BOOL _export DBF_FOUND()
 {
   PHB_ITEM pResult = hb_itemDoC( "DBF_FOUND", 0);
+  HB_BOOL value = hb_itemGetL( pResult) ;
+  hb_itemRelease( pResult );
+  return value;
+}
+
+HB_EXPORT HB_BOOL _export DBF_EOF()
+{
+  PHB_ITEM pResult = hb_itemDoC( "DBF_EOF", 0);
   HB_BOOL value = hb_itemGetL( pResult) ;
   hb_itemRelease( pResult );
   return value;
