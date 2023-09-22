@@ -116,8 +116,9 @@ FUNCTION DBF_RECORD_LOCK(nRecord, lUnlock)
   nRecord := IIF(nRecord == -1, RecNo(), nRecord)
   IF lUnlock
     DbRUnlock(nRecord)
+    RETURN .T.
   ELSE
-    DbRLock(nRecord)
+    RETURN DbRLock(nRecord)
   ENDIF
 RETURN NIL
 
@@ -138,6 +139,13 @@ RETURN Found()
 
 FUNCTION DBF_EOF()
 RETURN EOF() 
+
+FUNCTION DBF_SKIP(lCount)
+  DbSkip(lCount)
+RETURN NIL
+
+FUNCTION DBF_IS_DELETED()
+RETURN Deleted()
 
 FUNCTION ERROR_PROCEDURE(oErr)
   LOCAL nI, cText, cLine
@@ -219,6 +227,14 @@ HB_EXPORT void* _export DBF_GOTO(long recordNumber)
 {
   PHB_ITEM pRecord = hb_itemPutNL( NULL, recordNumber );
   hb_itemDoC( "DBF_GOTO", 1, pRecord);
+  hb_itemRelease( pRecord );
+  return NULL;
+}
+
+HB_EXPORT void* _export DBF_SKIP(long recordCount)
+{
+  PHB_ITEM pRecord = hb_itemPutNL( NULL, recordCount );
+  hb_itemDoC( "DBF_SKIP", 1, pRecord);
   hb_itemRelease( pRecord );
   return NULL;
 }
@@ -315,14 +331,16 @@ HB_EXPORT void* _export DBF_CLOSE_AREA(const char* cAlias)
   return NULL;
 }
 
-HB_EXPORT void* _export DBF_RECORD_LOCK(long recordNumber, BOOL isUnlock)
+HB_EXPORT HB_BOOL _export DBF_RECORD_LOCK(long recordNumber, BOOL isUnlock)
 {
   PHB_ITEM pRecord = hb_itemPutNL( NULL, recordNumber );
   PHB_ITEM pUnlock = hb_itemPutL( NULL, isUnlock );
-  hb_itemDoC( "DBF_RECORD_LOCK", 2, pRecord, pUnlock);
+  PHB_ITEM pResult = hb_itemDoC( "DBF_RECORD_LOCK", 2, pRecord, pUnlock);
+  HB_BOOL value = hb_itemGetL( pResult) ;
   hb_itemRelease( pRecord );
   hb_itemRelease( pUnlock );
-  return NULL;
+  hb_itemRelease( pResult );
+  return value;
 }
 
 
@@ -372,6 +390,14 @@ HB_EXPORT HB_BOOL _export DBF_INDEX_SEEK(long arg1, HB_BOOL arg2, HB_BOOL arg3)
 HB_EXPORT HB_BOOL _export DBF_FOUND()
 {
   PHB_ITEM pResult = hb_itemDoC( "DBF_FOUND", 0);
+  HB_BOOL value = hb_itemGetL( pResult) ;
+  hb_itemRelease( pResult );
+  return value;
+}
+
+HB_EXPORT HB_BOOL _export DBF_IS_DELETED()
+{
+  PHB_ITEM pResult = hb_itemDoC( "DBF_IS_DELETED", 0);
   HB_BOOL value = hb_itemGetL( pResult) ;
   hb_itemRelease( pResult );
   return value;

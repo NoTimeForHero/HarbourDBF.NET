@@ -86,6 +86,19 @@ namespace HarbourDBF.NET
             if (GetLastError(out var error)) throw new HarbourException(error);
         }
 
+        [DllImport(Constants.DllName, EntryPoint = "DBF_SKIP", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        private static extern IntPtr _Skip(int count);
+        /// <summary>
+        /// Сдвинуть указатель к следующей записи
+        /// </summary>
+        /// <param name="count">Количество записей для пропуска</param>
+        public static void Skip(int count = 1)
+        {
+            _Skip(count);
+            if (GetLastError(out var error)) throw new HarbourException(error);
+        }
+
+
         [DllImport(Constants.DllName, EntryPoint = "DBF_GET_LAST_ERROR", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         private static extern IntPtr _GetLastError();
 
@@ -178,16 +191,17 @@ namespace HarbourDBF.NET
         }
 
         [DllImport(Constants.DllName, EntryPoint = "DBF_RECORD_LOCK", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
-        private static extern void _RecordLock(int recordNumber, bool unlock);
+        private static extern bool _RecordLock(int recordNumber, bool unlock);
         /// <summary>
         /// Установить блокировку на конкретной записи
         /// </summary>
         /// <param name="recordNumber">Номер записи, если -1 значит берём последнюю из RecNo()</param>
         /// <param name="unlock">Если true то запись будет разблокирована</param>
-        public static void RecordLock(int recordNumber = -1, bool unlock = false)
+        public static bool RecordLock(int recordNumber = -1, bool unlock = false)
         {
-            _RecordLock(recordNumber, unlock);
+            var result = _RecordLock(recordNumber, unlock);
             if (GetLastError(out var error)) throw new HarbourException(error);
+            return result;
         }
 
         [DllImport(Constants.DllName, EntryPoint = "DBF_RECORDS", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
@@ -195,6 +209,14 @@ namespace HarbourDBF.NET
 
         [DllImport(Constants.DllName, EntryPoint = "DBF_EOF", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         private static extern bool _EndOfFile();
+
+        [DllImport(Constants.DllName, EntryPoint = "DBF_IS_DELETED", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        private static extern bool _IsRecordDeleted();
+
+        /// <summary>
+        /// Была ли удалена запись
+        /// </summary>
+        public static bool IsRecordDeleted => _IsRecordDeleted();
 
         /// <summary>
         /// Определение был ли достигнут конец файла
