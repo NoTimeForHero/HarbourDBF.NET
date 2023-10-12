@@ -112,6 +112,22 @@ namespace HarbourDBF.NET
             return !string.IsNullOrEmpty(error);
         }
 
+
+        [DllImport(Constants.DllName, EntryPoint = "DBF_EVAL", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        private static extern IntPtr _Eval(string code);
+
+        /// <summary>
+        /// Выполнить указанный код через & оператор Harbour-а
+        /// </summary>
+        /// <param name="code"></param>
+        /// <returns></returns>
+        public static string Eval(string code)
+        {
+            var raw =_Eval(code);
+            if (GetLastError(out var error)) throw new HarbourException(error);
+            return UnsafeUtils.GetString(raw);
+        }
+
         [DllImport(Constants.DllName, EntryPoint = "DBF_CREATE", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         private static extern IntPtr _Create(string databaseName, string json);
         /// <summary>
@@ -263,6 +279,19 @@ namespace HarbourDBF.NET
                 if (GetLastError(out var error)) throw new HarbourException(error);
             }
 
+            [DllImport(Constants.DllName, EntryPoint = "DBF_INDEX_SELECT_STR", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+            private static extern IntPtr _Select(string order);
+            /// <summary>
+            /// Выбрать указанный индекс для дальнейших операций (например Seek)
+            /// </summary>
+            /// <param name="order">Порядковый номер индекса</param>
+            /// <exception cref="HarbourException"></exception>
+            public static void Select(string order)
+            {
+                _Select(order);
+                if (GetLastError(out var error)) throw new HarbourException(error);
+            }
+
             [DllImport(Constants.DllName, EntryPoint = "DBF_INDEX_SEEK", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
             private static extern bool _Seek(int searchValue, bool softSeek = false, bool findLast = false);
             /// <summary>
@@ -281,10 +310,33 @@ namespace HarbourDBF.NET
             }
 
             /// <summary>
+            /// Создание нового индекса в памяти
+            /// </summary>
+            /// <param name="alias">Алиас базы данных</param>
+            /// <param name="tag">Название тэга индекса</param>
+            /// <param name="codeIndex">Harbour-код индекса</param>
+            /// <param name="codeFor">Harbour-код условия</param>
+            /// <exception cref="HarbourException"></exception>
+            public static void Create(string alias, string tag, string codeIndex, string codeFor)
+            {
+                _Create(alias, tag, codeIndex, codeFor);
+                if (GetLastError(out var error)) throw new HarbourException(error);
+            }
+
+            [DllImport(Constants.DllName, EntryPoint = "DBF_MAKE_INDEX", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+            private static extern void _Create(string alias, string tag, string codeIndex, string codeFor);
+
+            /// <summary>
             /// Проверка, была ли найдена запись после <see cref="Seek(int)"/>
             /// </summary>
             [DllImport(Constants.DllName, EntryPoint = "DBF_FOUND", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
             public static extern bool Found();
+
+            /// <summary>
+            /// Получить количество записей попадающих в индекс
+            /// </summary>
+            [DllImport(Constants.DllName, EntryPoint = "DBF_ORD_KEY_COUNT", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+            public static extern int OrdKeyCount();
 
         }
     }

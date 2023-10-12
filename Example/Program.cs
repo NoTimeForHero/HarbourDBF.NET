@@ -12,6 +12,11 @@ namespace Example
     {
         static void Main(string[] args)
         {
+            Test1.Run();
+
+            var dayName = DbfHarbour.Eval("CDoW(Date())");
+            Console.WriteLine($"День недели: {dayName}");
+
             DbfHarbour.Use("city", "REAL1", true);
             DbfHarbour.SelectArea("REAL1");
             DbfHarbour.Indexes.Load("City0.cdx");
@@ -19,6 +24,7 @@ namespace Example
             DbfHarbour.Indexes.Select(1);
             DbfHarbour.Indexes.Seek(4);
             var found = DbfHarbour.Indexes.Found();
+            Console.WriteLine("Запись удалена: " + (DbfHarbour.IsRecordDeleted ? "ДА" : "НЕТ"));
             Console.WriteLine("Нашли запись: " + (found ? "ДА" : "НЕТ"));
             var foundValues = DbfHarbour.GetValues(new[] { "CITY", "KCITY" });
             Console.WriteLine("Нашли: " + string.Join(", ", foundValues.Select(x => x.ToString())));

@@ -134,6 +134,9 @@ FUNCTION DBF_INDEX_SEEK(nPosition, lSoftSeek, lFindLast)
   DbSeek(nPosition, lSoftSeek, lFindLast)
 RETURN NIL
 
+FUNCTION DBF_ORD_KEY_COUNT()
+RETURN OrdKeyCount()
+
 FUNCTION DBF_FOUND()
 RETURN Found() 
 
@@ -178,6 +181,15 @@ FUNCTION TEST244()
   FOR nI := 1 TO 1
     ? HB_ValToExp(aData)
   NEXT
+RETURN NIL
+
+FUNCTION DBF_EVAL(cExecutable)
+  LOCAL hData := &cExecutable
+RETURN hb_jsonEncode(hData)
+
+FUNCTION DBF_MAKE_INDEX(cAlias, cTag, cIndex, cFor)
+  DbSelectArea(cAlias)
+  INDEX ON &cIndex TAG cTag FOR &cFor TEMPORARY ADDITIVE 
 RETURN NIL
 
 #pragma BEGINDUMP
@@ -373,6 +385,13 @@ HB_EXPORT void _export DBF_INDEX_SELECT(long cArg1)
   hb_itemRelease( pArg1 );
 }
 
+  HB_EXPORT void _export DBF_INDEX_SELECT_STR(char* cArg1)
+{
+  PHB_ITEM pArg1 = hb_itemPutC( NULL, cArg1 );
+  hb_itemDoC( "DBF_INDEX_SELECT", 1, pArg1);
+  hb_itemRelease( pArg1 );
+}
+
 HB_EXPORT HB_BOOL _export DBF_INDEX_SEEK(long arg1, HB_BOOL arg2, HB_BOOL arg3)
 {
   PHB_ITEM pArg1 = hb_itemPutNL( NULL, arg1 );
@@ -409,6 +428,39 @@ HB_EXPORT HB_BOOL _export DBF_EOF()
   HB_BOOL value = hb_itemGetL( pResult) ;
   hb_itemRelease( pResult );
   return value;
+}
+
+HB_EXPORT long _export DBF_ORD_KEY_COUNT()
+{
+  PHB_ITEM pResult = hb_itemDoC( "DBF_ORD_KEY_COUNT", 0);
+  long nRecords = hb_itemGetNL(pResult);
+  hb_itemRelease( pResult );
+  return nRecords;
+}
+
+
+HB_EXPORT void* _export DBF_EVAL(const char * cCode)
+{
+  PHB_ITEM pCode = hb_itemPutC( NULL, cCode );
+  PHB_ITEM pResult = hb_itemDoC( "DBF_EVAL", 1, pCode);
+  char * rawResult = (char*) hb_itemGetC(pResult);
+  hb_itemRelease( pCode );
+  hb_itemRelease( pResult );
+  return rawResult;
+}
+
+HB_EXPORT void* _export DBF_MAKE_INDEX(const char * cAlias, const char * cTag, const char * cIndex, const char * cFor)
+{
+  PHB_ITEM pAlias = hb_itemPutC( NULL, cAlias );
+    PHB_ITEM pTag = hb_itemPutC( NULL, cTag );
+  PHB_ITEM pIndex = hb_itemPutC( NULL, cIndex );
+  PHB_ITEM pFor = hb_itemPutC( NULL, cFor );
+  hb_itemDoC( "DBF_MAKE_INDEX", 4, pAlias, pTag, pIndex, pFor );
+  hb_itemRelease( pAlias );
+  hb_itemRelease( pIndex );
+  hb_itemRelease( pTag );
+  hb_itemRelease( pFor );
+  return NULL;
 }
 
 #pragma ENDDUMP
