@@ -1,3 +1,5 @@
+UPD 12.03.2024: По неизвестной причине все экспортируемый C-шные методы теперь имеют префикс _, поэтому пришлось править код на стороне C#
+
 Полезные ссылки по сборке библиотек:
 https://groups.google.com/g/harbour-users/c/RaZf0cXG_6k
 https://harbour.harbour-project.narkive.com/AIwGxksL/how-to-create-a-dll-using-hbmk2

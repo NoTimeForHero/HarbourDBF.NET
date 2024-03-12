@@ -14,10 +14,16 @@ namespace Example
         {
             Test1.Run();
 
+            //var thTest = new TestThread(4, 10000);
+            //thTest.PrepareFiles().RunTests();
+
+            //if (true) return;
             var dayName = DbfHarbour.Eval("CDoW(Date())");
             Console.WriteLine($"День недели: {dayName}");
+            Console.WriteLine("Alias: " + DbfHarbour.Alias);
 
-            DbfHarbour.Use("city", "REAL1", true);
+            DbfHarbour.Use("city", "REAL1", false);
+            Console.WriteLine("Alias: " + DbfHarbour.Alias);
             DbfHarbour.SelectArea("REAL1");
             DbfHarbour.Indexes.Load("City0.cdx");
             DbfHarbour.Indexes.Load("City2.cdx");
@@ -52,12 +58,14 @@ namespace Example
 
             // Открываем созданный справочник
             DbfHarbour.Use("test44", "TEST", true);
+            Console.WriteLine("Alias: " + DbfHarbour.Alias);
 
             // Баг был найден при помощи другого бенчмарка
             //DbfHarbour.Use("columns20", "TEST99", true);
             //var test = DbfHarbour.GetValues(new[] { "Age" });
 
             DbfHarbour.SelectArea("TEST");
+            Console.WriteLine("Alias: " + DbfHarbour.Alias);
 
             // Создаём Запись 1
             DbfHarbour.Append();

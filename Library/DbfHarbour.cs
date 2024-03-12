@@ -9,9 +9,9 @@ using Newtonsoft.Json;
 
 namespace HarbourDBF.NET
 {
-    public static class DbfHarbour
+    public static partial class DbfHarbour
     {
-        [DllImport(Constants.DllName, EntryPoint = "DBF_USE", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        [DllImport(Constants.DllName, EntryPoint = "_DBF_USE", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         private static extern IntPtr _Use(string databaseName, string alias, bool exclusive = false, string codepage = "");
         /// <summary>
         /// Открытие файла DBF
@@ -26,7 +26,7 @@ namespace HarbourDBF.NET
             if (GetLastError(out var error)) throw new HarbourException(error);
         }
 
-        [DllImport(Constants.DllName, EntryPoint = "DBF_SELECT_AREA", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        [DllImport(Constants.DllName, EntryPoint = "_DBF_SELECT_AREA", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         private static extern IntPtr _SelectArea(string alias);
         /// <summary>
         /// Переключиться на указанный алиас
@@ -38,7 +38,7 @@ namespace HarbourDBF.NET
             if (GetLastError(out var error)) throw new HarbourException(error);
         }
 
-        [DllImport(Constants.DllName, EntryPoint = "DBF_CLOSE_AREA", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        [DllImport(Constants.DllName, EntryPoint = "_DBF_CLOSE_AREA", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         private static extern IntPtr _CloseArea(string alias);
         /// <summary>
         /// Закрыть файл БД для указанного алиаса
@@ -51,7 +51,7 @@ namespace HarbourDBF.NET
         }
 
 
-        [DllImport(Constants.DllName, EntryPoint = "DBF_APPEND", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        [DllImport(Constants.DllName, EntryPoint = "_DBF_APPEND", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         private static extern IntPtr _Append();
         /// <summary>
         /// Добавить новую запись в конец файла
@@ -63,7 +63,7 @@ namespace HarbourDBF.NET
         }
 
 
-        [DllImport(Constants.DllName, EntryPoint = "DBF_COMMIT", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        [DllImport(Constants.DllName, EntryPoint = "_DBF_COMMIT", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         private static extern IntPtr _Commit();
         /// <summary>
         /// Записать изменения на жесткий диск
@@ -74,7 +74,7 @@ namespace HarbourDBF.NET
             if (GetLastError(out var error)) throw new HarbourException(error);
         }
 
-        [DllImport(Constants.DllName, EntryPoint = "DBF_GOTO", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        [DllImport(Constants.DllName, EntryPoint = "_DBF_GOTO", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         private static extern IntPtr _GoTo(long recordNumber);
         /// <summary>
         /// Перейти к указанной записи
@@ -86,7 +86,7 @@ namespace HarbourDBF.NET
             if (GetLastError(out var error)) throw new HarbourException(error);
         }
 
-        [DllImport(Constants.DllName, EntryPoint = "DBF_SKIP", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        [DllImport(Constants.DllName, EntryPoint = "_DBF_SKIP", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         private static extern IntPtr _Skip(int count);
         /// <summary>
         /// Сдвинуть указатель к следующей записи
@@ -99,7 +99,7 @@ namespace HarbourDBF.NET
         }
 
 
-        [DllImport(Constants.DllName, EntryPoint = "DBF_GET_LAST_ERROR", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        [DllImport(Constants.DllName, EntryPoint = "_DBF_GET_LAST_ERROR", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         private static extern IntPtr _GetLastError();
 
         /// <summary>
@@ -113,7 +113,7 @@ namespace HarbourDBF.NET
         }
 
 
-        [DllImport(Constants.DllName, EntryPoint = "DBF_EVAL", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        [DllImport(Constants.DllName, EntryPoint = "_DBF_EVAL", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         private static extern IntPtr _Eval(string code);
 
         /// <summary>
@@ -128,7 +128,12 @@ namespace HarbourDBF.NET
             return UnsafeUtils.GetString(raw);
         }
 
-        [DllImport(Constants.DllName, EntryPoint = "DBF_CREATE", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        [DllImport(Constants.DllName, EntryPoint = "_DBF_GET_ALIAS", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        private static extern IntPtr GetAlias();
+
+        public static string Alias => UnsafeUtils.GetString(GetAlias());
+
+        [DllImport(Constants.DllName, EntryPoint = "_DBF_CREATE", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         private static extern IntPtr _Create(string databaseName, string json);
         /// <summary>
         /// Создать новый DBF файл с указанной структурой
@@ -142,7 +147,7 @@ namespace HarbourDBF.NET
             if (GetLastError(out var error)) throw new HarbourException(error);
         }
 
-        [DllImport(Constants.DllName, EntryPoint = "DBF_SET_VALUES", CallingConvention = CallingConvention.Cdecl)]
+         [DllImport(Constants.DllName, EntryPoint = "_DBF_SET_VALUES", CallingConvention = CallingConvention.Cdecl)]
         private static extern IntPtr _SetValues(byte[] json);
         /// <summary>
         /// Установить значения для указанных полей на активной записи
@@ -159,7 +164,7 @@ namespace HarbourDBF.NET
             if (GetLastError(out var error)) throw new HarbourException(error);
         }
 
-        [DllImport(Constants.DllName, EntryPoint = "DBF_GET_VALUES_RANGE", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        [DllImport(Constants.DllName, EntryPoint = "_DBF_GET_VALUES_RANGE", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         private static extern IntPtr _GetValuesRange(string json, uint begin, uint end);
 
         /// <summary>
@@ -184,7 +189,7 @@ namespace HarbourDBF.NET
             return entries;
         }
 
-        [DllImport(Constants.DllName, EntryPoint = "DBF_GET_VALUES", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        [DllImport(Constants.DllName, EntryPoint = "_DBF_GET_VALUES", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         private static extern IntPtr _GetValues(string json);
         /// <summary>
         /// Получить значения полей для указанных записей
@@ -206,7 +211,7 @@ namespace HarbourDBF.NET
             return entries ?? Array.Empty<object>();
         }
 
-        [DllImport(Constants.DllName, EntryPoint = "DBF_RECORD_LOCK", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        [DllImport(Constants.DllName, EntryPoint = "_DBF_RECORD_LOCK", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         private static extern bool _RecordLock(int recordNumber, bool unlock);
         /// <summary>
         /// Установить блокировку на конкретной записи
@@ -220,13 +225,13 @@ namespace HarbourDBF.NET
             return result;
         }
 
-        [DllImport(Constants.DllName, EntryPoint = "DBF_RECORDS", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        [DllImport(Constants.DllName, EntryPoint = "_DBF_RECORDS", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         private static extern int RecordsCounters(bool current);
 
-        [DllImport(Constants.DllName, EntryPoint = "DBF_EOF", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        [DllImport(Constants.DllName, EntryPoint = "_DBF_EOF", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         private static extern bool _EndOfFile();
 
-        [DllImport(Constants.DllName, EntryPoint = "DBF_IS_DELETED", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        [DllImport(Constants.DllName, EntryPoint = "_DBF_IS_DELETED", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         private static extern bool _IsRecordDeleted();
 
         /// <summary>
@@ -254,7 +259,7 @@ namespace HarbourDBF.NET
         /// </summary>
         public static class Indexes
         {
-            [DllImport(Constants.DllName, EntryPoint = "DBF_INDEX_LOAD", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+            [DllImport(Constants.DllName, EntryPoint = "_DBF_INDEX_LOAD", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
             private static extern IntPtr _Load(string indexName);
             /// <summary>
             /// Загрузить указанный индекс (например test0.cdx)
@@ -266,7 +271,7 @@ namespace HarbourDBF.NET
                 if (GetLastError(out var error)) throw new HarbourException(error);
             }
 
-            [DllImport(Constants.DllName, EntryPoint = "DBF_INDEX_SELECT", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+            [DllImport(Constants.DllName, EntryPoint = "_DBF_INDEX_SELECT", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
             private static extern IntPtr _Select(int order);
             /// <summary>
             /// Выбрать указанный индекс для дальнейших операций (например Seek)
@@ -279,7 +284,7 @@ namespace HarbourDBF.NET
                 if (GetLastError(out var error)) throw new HarbourException(error);
             }
 
-            [DllImport(Constants.DllName, EntryPoint = "DBF_INDEX_SELECT_STR", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+            [DllImport(Constants.DllName, EntryPoint = "_DBF_INDEX_SELECT_STR", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
             private static extern IntPtr _Select(string order);
             /// <summary>
             /// Выбрать указанный индекс для дальнейших операций (например Seek)
@@ -292,7 +297,7 @@ namespace HarbourDBF.NET
                 if (GetLastError(out var error)) throw new HarbourException(error);
             }
 
-            [DllImport(Constants.DllName, EntryPoint = "DBF_INDEX_SEEK", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+            [DllImport(Constants.DllName, EntryPoint = "_DBF_INDEX_SEEK", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
             private static extern bool _Seek(int searchValue, bool softSeek = false, bool findLast = false);
             /// <summary>
             /// Найти для активного индекса <see cref="Select(int)"/> нужное значение колонки (например UserId=4)
@@ -323,19 +328,19 @@ namespace HarbourDBF.NET
                 if (GetLastError(out var error)) throw new HarbourException(error);
             }
 
-            [DllImport(Constants.DllName, EntryPoint = "DBF_MAKE_INDEX", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+            [DllImport(Constants.DllName, EntryPoint = "_DBF_MAKE_INDEX", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
             private static extern void _Create(string alias, string tag, string codeIndex, string codeFor);
 
             /// <summary>
             /// Проверка, была ли найдена запись после <see cref="Seek(int)"/>
             /// </summary>
-            [DllImport(Constants.DllName, EntryPoint = "DBF_FOUND", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+            [DllImport(Constants.DllName, EntryPoint = "_DBF_FOUND", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
             public static extern bool Found();
 
             /// <summary>
             /// Получить количество записей попадающих в индекс
             /// </summary>
-            [DllImport(Constants.DllName, EntryPoint = "DBF_ORD_KEY_COUNT", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+            [DllImport(Constants.DllName, EntryPoint = "_DBF_ORD_KEY_COUNT", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
             public static extern int OrdKeyCount();
 
         }

@@ -131,8 +131,7 @@ FUNCTION DBF_INDEX_SELECT(nOrder)
 RETURN NIL
 
 FUNCTION DBF_INDEX_SEEK(nPosition, lSoftSeek, lFindLast)
-  DbSeek(nPosition, lSoftSeek, lFindLast)
-RETURN NIL
+RETURN DbSeek(nPosition, lSoftSeek, lFindLast)
 
 FUNCTION DBF_ORD_KEY_COUNT()
 RETURN OrdKeyCount()
@@ -149,6 +148,9 @@ RETURN NIL
 
 FUNCTION DBF_IS_DELETED()
 RETURN Deleted()
+
+FUNCTION DBF_GET_ALIAS()
+RETURN Alias()
 
 FUNCTION ERROR_PROCEDURE(oErr)
   LOCAL nI, cText, cLine
@@ -173,6 +175,9 @@ FUNCTION INIT_LIBRARY()
   REQUEST HB_CODEPAGE_RU866
   REQUEST HB_LANG_RU866
   HB_LANGSELECT("RU866")
+  SET DATE     TO GERMAN
+  SET DECIMALS TO 2
+  SET EPOCH    TO 2000  
 RETURN NIL
 
 FUNCTION TEST244()
@@ -445,6 +450,14 @@ HB_EXPORT void* _export DBF_EVAL(const char * cCode)
   PHB_ITEM pResult = hb_itemDoC( "DBF_EVAL", 1, pCode);
   char * rawResult = (char*) hb_itemGetC(pResult);
   hb_itemRelease( pCode );
+  hb_itemRelease( pResult );
+  return rawResult;
+}
+
+HB_EXPORT void* _export DBF_GET_ALIAS()
+{
+  PHB_ITEM pResult = hb_itemDoC( "DBF_GET_ALIAS", 0);
+  char * rawResult = (char*) hb_itemGetC(pResult);
   hb_itemRelease( pResult );
   return rawResult;
 }

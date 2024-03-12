@@ -10,7 +10,7 @@ if (Test-Path $library) {
 }
 
 Write-Host "Building path: $pwd"
-& C:\Harbour3\bin\hbmk2 main.hbp
+& C:\Harbour3\bin\hbmk2 -comp=bcc main.hbp
 
 if (-Not(Test-Path $library)) {
     Write-Error "Build failed!"

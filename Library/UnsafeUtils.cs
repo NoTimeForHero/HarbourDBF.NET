@@ -9,7 +9,7 @@ namespace HarbourDBF.NET
 {
     internal class UnsafeUtils
     {
-        [DllImport(Constants.DllName, EntryPoint = "DBF_UNSAFE_FREE", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport(Constants.DllName, EntryPoint = "_DBF_UNSAFE_FREE", CallingConvention = CallingConvention.Cdecl)]
         private static extern IntPtr UnsafeFree(IntPtr target);
 
         // Идея взята отсюда: https://stackoverflow.com/a/42503844
