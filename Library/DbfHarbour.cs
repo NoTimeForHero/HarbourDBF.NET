@@ -156,10 +156,11 @@ namespace HarbourDBF.NET
         /// <param name="enc">Кодировка в которую будет сконвертирован текст</param>
         public static void SetValues(Dictionary<string, object> values, Encoding enc = null)
         {
+            enc = enc ?? Constants.DefaultEncoding;
             // TODO: Приведение сложных типов вроде DateTime к корректному Harbour формату
             var raw = values.Select(x => new[] { x.Key, x.Value, x.Value.GetType().FullName });
             var json = JsonConvert.SerializeObject(raw);
-            var converted = Constants.DefaultEncoding.GetBytes(json);
+            var converted = enc.GetBytes(json);
             _SetValues(converted);
             if (GetLastError(out var error)) throw new HarbourException(error);
         }
