@@ -15,6 +15,7 @@ namespace HarbourDBF.NET.Beta
         private readonly Dictionary<string, IndexInfo> indexesByField = new();
         private readonly DatabaseFieldsInfo _fieldsInfo;
         private static readonly Dictionary<string, DatabaseFieldsInfo> globalFieldCache = new();
+        public Encoding DatabaseEncoding = null;
 
         public Database(string path, string alias = null, bool exclusive = false, string codepage = "", bool useGlobalCache = false)
         {
@@ -31,11 +32,28 @@ namespace HarbourDBF.NET.Beta
             }
         }
 
+        public IEnumerable<object> GetValues(int recNo, IEnumerable<string> keys)
+        {
+            DbfHarbour.SelectArea(alias);
+            DbfHarbour.GoTo(recNo);
+            return DbfHarbour.GetValues(keys, DatabaseEncoding);
+        }
+
+        public Dictionary<string, object> GetValuesDict(int recNo, IEnumerable<string> fieldKeys)
+        {
+            var keys = fieldKeys.ToArray();
+            var values = GetValues(recNo, keys).ToArray();
+            if (keys.Length != values.Length) throw new InvalidDataException("Wrong size of keys/values!");
+            var result = new Dictionary<string, object>();
+            for (var i = 0; i < keys.Length; i++) result[keys[i]] = values[i];
+            return result;
+        }
+
         public void SetValues(int recNo, Dictionary<string, object> values)
         {
             DbfHarbour.SelectArea(alias);
             DbfHarbour.GoTo(recNo);
-            InternalUniversal.SetValues(_fieldsInfo, values);
+            InternalUniversal.SetValues(_fieldsInfo, values, DatabaseEncoding);
         }
 
         public void RegisterIndex(string field, string path)
