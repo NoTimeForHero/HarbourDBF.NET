@@ -1,5 +1,6 @@
 ﻿using HarbourDBF.NET.Data;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -15,7 +16,22 @@ namespace HarbourDBF.NET.Beta
         private readonly Dictionary<string, IndexInfo> indexesByField = new();
         private readonly DatabaseFieldsInfo _fieldsInfo;
         private static readonly Dictionary<string, DatabaseFieldsInfo> globalFieldCache = new();
+
+        /// <summary>
+        /// Кодировка внутри открываемого DBF
+        /// </summary>
         public Encoding DatabaseEncoding = null;
+
+        /// <summary>
+        /// Необходимо ли удалять пробелы из текстовых полей
+        /// </summary>
+        public bool TrimText = true;
+
+        /// <summary>
+        /// По умолчанию JSON.NET превращает числа в Long
+        /// Данная опция принудит возвращать Int
+        /// </summary>
+        public bool IntInsteadLong = false;
 
         public Database(string path, string alias = null, bool exclusive = false, string codepage = "", bool useGlobalCache = false)
         {
@@ -36,7 +52,10 @@ namespace HarbourDBF.NET.Beta
         {
             DbfHarbour.SelectArea(alias);
             DbfHarbour.GoTo(recNo);
-            return DbfHarbour.GetValues(keys, DatabaseEncoding);
+            var values = DbfHarbour.GetValues(keys, DatabaseEncoding).ToArray();
+            if (TrimText) Utils.TrimText(values);
+            if (IntInsteadLong) Utils.LongToInt(values);
+            return values;
         }
 
         public Dictionary<string, object> GetValuesDict(int recNo, IEnumerable<string> fieldKeys)
@@ -47,6 +66,15 @@ namespace HarbourDBF.NET.Beta
             var result = new Dictionary<string, object>();
             for (var i = 0; i < keys.Length; i++) result[keys[i]] = values[i];
             return result;
+        }
+
+        public T GetValue<T>(int recNo, string field, T defValue = default)
+        {
+            var rawValue = GetValues(recNo, new[] { field }).FirstOrDefault();
+            if (rawValue is T value) return value;
+            var convRes = (T)Convert.ChangeType(rawValue, typeof(T));
+            if (convRes != null) return convRes;
+            return defValue;
         }
 
         public void SetValues(int recNo, Dictionary<string, object> values)
@@ -87,5 +115,27 @@ namespace HarbourDBF.NET.Beta
         }
 
         public record IndexInfo(string Field, string Path, int Order);
+
+
+        private static class Utils
+        {
+            public static void TrimText(object[] values)
+            {
+                for (var i = 0; i < values.Length; i++)
+                {
+                    var item = values[i];
+                    if (item is string text) values[i] = text.Trim();
+                }
+            }
+
+            public static void LongToInt(object[] values)
+            {
+                for (var i = 0; i < values.Length; i++)
+                {
+                    var item = values[i];
+                    if (item is long longVal) values[i] = Convert.ToInt32(longVal);
+                }
+            }
+        }
     }
 }
