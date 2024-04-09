@@ -39,14 +39,15 @@ namespace HarbourDBF.NET
         }
 
         [DllImport(Constants.DllName, EntryPoint = "_DBF_CLOSE_AREA", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
-        private static extern IntPtr _CloseArea(string alias);
+        private static extern bool _CloseArea(string alias);
         /// <summary>
         /// Закрыть файл БД для указанного алиаса
         /// </summary>
         /// <param name="alias">Название алиаса</param>
-        public static void CloseArea(string alias = null)
+        public static void CloseArea(string alias)
         {
-            _CloseArea(alias);
+            var success = _CloseArea(alias);
+            if (!success) throw new HarbourException($"Alias is not exists: {alias}");
             if (GetLastError(out var error)) throw new HarbourException(error);
         }
 

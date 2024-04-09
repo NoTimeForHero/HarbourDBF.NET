@@ -13,7 +13,9 @@ STATIC cLastError := NIL
 // Поэтому лучше использовать дополнительную обёртку хоть и ценой производительности
 
 FUNCTION DBF_GET_LAST_ERROR()
-RETURN cLastError
+  LOCAL cError := cLastError
+  cLastError := NIL
+RETURN cError
 
 FUNCTION DBF_USE(cFile, cAlias, lExclusive, cCodepage)
   LOCAL cRdd := RddSetDefault()
@@ -47,11 +49,16 @@ FUNCTION DBF_COMMIT()
 RETURN NIL
 
 FUNCTION DBF_CLOSE_AREA(cAlias)
-  IF LEN(cAlias) > 0
-    DbSelectArea(cAlias)
+  LOCAL nCode
+  IF LEN(cAlias) < 0    
+    RETURN .F.
   ENDIF
-  DbCloseArea()
-RETURN NIL
+  nCode := SELECT(cAlias)
+  IF nCode == 0
+    RETURN .F.
+  ENDIF
+  (nCode)->(DbCloseArea())
+RETURN .T.
 
 FUNCTION DBF_GET_VALUES(cJson)
   LOCAL aFields, nI, nField
@@ -340,12 +347,13 @@ HB_EXPORT void* _export DBF_SELECT_AREA(const char* cAlias)
   return NULL;
 }
 
-HB_EXPORT void* _export DBF_CLOSE_AREA(const char* cAlias)
+HB_EXPORT HB_BOOL _export DBF_CLOSE_AREA(const char* cAlias)
 {
   PHB_ITEM pAlias = hb_itemPutC( NULL, cAlias );
-  hb_itemDoC( "DBF_CLOSE_AREA", 1, pAlias);
+  PHB_ITEM pResult = hb_itemDoC( "DBF_CLOSE_AREA", 1, pAlias);
+  HB_BOOL value = hb_itemGetL( pResult) ;
   hb_itemRelease( pAlias );
-  return NULL;
+  return value;
 }
 
 HB_EXPORT HB_BOOL _export DBF_RECORD_LOCK(long recordNumber, BOOL isUnlock)

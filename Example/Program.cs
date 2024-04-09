@@ -22,6 +22,8 @@ namespace Example
             Console.WriteLine($"День недели: {dayName}");
             Console.WriteLine("Alias: " + DbfHarbour.Alias);
 
+            //DbfHarbour.CloseArea();
+
             DbfHarbour.Use("city", "REAL1", false);
             Console.WriteLine("Alias: " + DbfHarbour.Alias);
             DbfHarbour.SelectArea("REAL1");
@@ -44,7 +46,7 @@ namespace Example
                     { "KCITY", 8 }, { "CITY", "Кострома" }, { "KVIEW", 1 }
                 });
                 DbfHarbour.Commit();
-                DbfHarbour.CloseArea();
+                DbfHarbour.CloseArea("REAL1");
             }
 
             DbfHarbour.Create("test44", new[]
@@ -105,7 +107,8 @@ namespace Example
             var range = DbfHarbour.GetValuesRange(
                 new[] { "USER", "AGE" }, 1, (uint)DbfHarbour.TotalRecords);
 
-            DbfHarbour.CloseArea();
+            DbfHarbour.CloseArea("TEST");
+            //DbfHarbour.CloseArea("TEST2");
 
             Console.WriteLine("Press any key to exit...");
             Console.ReadKey();
