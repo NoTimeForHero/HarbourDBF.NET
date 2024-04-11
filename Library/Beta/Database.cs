@@ -33,6 +33,11 @@ namespace HarbourDBF.NET.Beta
         /// </summary>
         public bool IntInsteadLong = false;
 
+        /// <summary>
+        /// Получение прямого алиаса
+        /// </summary>
+        public string Alias => alias;
+
         public Database(string path, string alias = null, bool exclusive = false, string codepage = "", bool useGlobalCache = false)
         {
             this.alias = alias ?? "alias_" + Guid.NewGuid();
@@ -95,7 +100,11 @@ namespace HarbourDBF.NET.Beta
             DbfHarbour.Indexes.Load(path); // IDZ
         }
 
-        public RecordLock MakeLock(int recNo) => new(recNo);
+        public RecordLock MakeLock(int recNo)
+        {
+            DbfHarbour.SelectArea(alias);
+            return new(recNo);
+        }
 
         public int Search(string field, int value, bool soft = false, bool last = false)
         {
