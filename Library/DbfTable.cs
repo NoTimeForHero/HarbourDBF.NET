@@ -136,10 +136,11 @@ namespace HarbourDBF.NET
                     string bag = Path.GetFileNameWithoutExtension(DbfPaths.Index(tablePath, index.File));
                     var schema = schemaFields[index.Field.Name];
                     if (!string.Equals((string)data[1], bag, StringComparison.OrdinalIgnoreCase) ||
-                        !string.Equals(((string)data[2]).Trim(), index.Field.Name, StringComparison.OrdinalIgnoreCase) ||
+                        !string.Equals(RemoveWhitespace((string)data[2]), RemoveWhitespace(index.HarbourExpression), StringComparison.OrdinalIgnoreCase) ||
                         (bool)data[3] || !string.IsNullOrWhiteSpace((string)data[4]) || (bool)data[5] ||
                         !(index.Field.Property.PropertyType == typeof(int) && schema.Type == "N" && schema.Point == 0 ||
-                          index.Field.Property.PropertyType == typeof(string) && schema.Type == "C" && encoding.IsSingleByte))
+                          index.Field.Property.PropertyType == typeof(string) && schema.Type == "C" && encoding.IsSingleByte) ||
+                        (index.Format != null && (!encoding.IsSingleByte || !index.Format.Width.HasValue)))
                         throw new InvalidOperationException("Unsupported or mismatched index tag: " + index.Tag);
                     match = order;
                 }
@@ -147,6 +148,8 @@ namespace HarbourDBF.NET
                 orders.Add(index, match);
             }
         }
+
+        private static string RemoveWhitespace(string value) => new string(value.Where(c => !char.IsWhiteSpace(c)).ToArray());
 
         public DbfIndex<T, TKey> Index<TKey>(DbfIndexMapping<T, TKey> descriptor)
         {
@@ -177,6 +180,12 @@ namespace HarbourDBF.NET
 
         private bool SeekKey<TKey>(DbfIndexMapping<T, TKey> descriptor, TKey key, bool last)
         {
+            if (descriptor.Format != null)
+            {
+                string formatted = descriptor.Format.Format(key, encoding);
+                if (encoding.GetByteCount(formatted) != descriptor.Format.Width.Value) throw new InvalidOperationException("Formatted key has an unexpected width.");
+                return DbfHarbour.Indexes.Seek(formatted, false, last, encoding);
+            }
             if (key is int number) return DbfHarbour.Indexes.Seek(number, false, last);
             if (key is string text)
             {

@@ -58,6 +58,7 @@
     <Compile Include="DbfCodepage.cs" />
     <Compile Include="DbfExecutor.cs" />
     <Compile Include="DbfIndex.cs" />
+    <Compile Include="DbfKeyFormat.cs" />
     <Compile Include="DbfMapping.cs" />
     <Compile Include="DbfSession.cs" />
     <Compile Include="DbfTable.cs" />

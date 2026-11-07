@@ -38,7 +38,7 @@ namespace HarbourDBF.NET
             return fields.AsReadOnly();
         }
 
-        protected DbfIndexMapping<T, TKey> Index<TKey>(Expression<Func<T, TKey>> key, string file, string tag)
+        protected DbfIndexMapping<T, TKey> Index<TKey>(Expression<Func<T, TKey>> key, string file, string tag, DbfKeyFormat format = null)
         {
             EnsureMutable();
             if (key == null) throw new ArgumentNullException(nameof(key));
@@ -48,11 +48,12 @@ namespace HarbourDBF.NET
             var field = fields.Find(x => x.Property == property);
             if (field == null) throw new ArgumentException("The indexed property must be mapped first.", nameof(key));
             if (typeof(TKey) != typeof(int) && typeof(TKey) != typeof(string)) throw new ArgumentException("Only int and string keys are supported.", nameof(key));
+            if (format != null && format.InputType != typeof(TKey)) throw new ArgumentException("The key type does not match the format.", nameof(format));
             if (string.IsNullOrWhiteSpace(file)) throw new ArgumentException("An index file is required.", nameof(file));
             if (string.IsNullOrWhiteSpace(tag)) throw new ArgumentException("An index tag is required.", nameof(tag));
             foreach (var existing in indexes)
                 if (string.Equals(existing.Tag, tag, StringComparison.OrdinalIgnoreCase)) throw new ArgumentException("Index tag names must be unique in a mapping.", nameof(tag));
-            var definition = new DbfIndexMapping<T, TKey>(this, field, file, tag);
+            var definition = new DbfIndexMapping<T, TKey>(this, field, file, tag, format);
             indexes.Add(definition);
             return definition;
         }

@@ -118,12 +118,13 @@ internal static class Program
 
     private sealed class ComplexMapping : DbfMapping<ComplexModel>
     {
+        public DbfIndexMapping<ComplexModel, string> ByName { get; }
         public ComplexMapping()
         {
             Field(x => x.Id, "ID");
             Field(x => x.Name, "NAME").TrimEnd();
             Field(x => x.View, "VIEW");
-            IndexBag("complex.cdx");
+            ByName = Index(x => x.Name, "complex.cdx", "NAME", DbfKeyFormat.AllTrim().ThenPadRight(20).Upper());
         }
     }
 
@@ -528,9 +529,15 @@ internal static class Program
         Directory.CreateDirectory(copy);
         RunComplexHelper(generator, copy, "");
         string originalCodepage = DbfHarbour.Eval("hb_cdpSelect()");
+        var mapping = new ComplexMapping();
         using (var session = DbfSession.Open(copy))
-        using (var table = session.OpenTable("complex.dbf", new ComplexMapping(), "UA866", Cp866, mode: DbfOpenMode.SharedReadWrite))
+        using (var table = session.OpenTable("complex.dbf", mapping, "UA866", Cp866, mode: DbfOpenMode.SharedReadWrite))
         {
+            Equal(3, table.Index(mapping.ByName).EqualTo("  алиса ").Count(), "formatted name search");
+            Equal(1, table.Index(mapping.ByName).FindFirst("алиса").Value.Id, "formatted first key");
+            bool badKey = false;
+            try { table.Index(mapping.ByName).FindFirst(new string('X', 21)); } catch (InvalidOperationException) { badKey = true; }
+            Require(badKey, "formatted key truncation accepted");
             table.Insert(new ComplexModel { Id = 5, Name = "алиса", View = 3 }, strict: true);
             Equal("\"UA866\"", ComplexModel.ObservedCodepage, "codepage during typed operation");
             table.Update(table.ReadAt(1).Reference, row => row.Name = "борис");

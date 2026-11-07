@@ -37,12 +37,54 @@ FUNCTION INTERNAL_SET_VALUES(cData)
   hResult := { "RESULT" => nLen }
 RETURN hResult
 
+FUNCTION INTERNAL_FORMAT_KEY(cData)
+  LOCAL hData, xValue, aStep, cOp, nWidth
+  hb_jsonDecode(cData, @hData)
+  xValue := hData["value"]
+  FOR EACH aStep IN hData["steps"]
+    cOp := aStep[1]
+    IF cOp == "STR"
+      IF ValType(xValue) != "N"
+        RETURN { "ERROR" => "STR requires a number" }
+      ENDIF
+      nWidth := aStep[2]
+      xValue := Str(xValue, nWidth, 0)
+      IF "*" $ xValue
+        RETURN { "ERROR" => "STR width exceeded" }
+      ENDIF
+    ELSEIF cOp == "ALLTRIM"
+      IF ValType(xValue) != "C"
+        RETURN { "ERROR" => "ALLTRIM requires text" }
+      ENDIF
+      xValue := AllTrim(xValue)
+    ELSEIF cOp == "PADR"
+      IF ValType(xValue) != "C"
+        RETURN { "ERROR" => "PADR requires text" }
+      ENDIF
+      nWidth := aStep[2]
+      IF Len(xValue) > nWidth
+        RETURN { "ERROR" => "PADR width exceeded" }
+      ENDIF
+      xValue := PadR(xValue, nWidth)
+    ELSEIF cOp == "UPPER"
+      IF ValType(xValue) != "C"
+        RETURN { "ERROR" => "UPPER requires text" }
+      ENDIF
+      xValue := Upper(xValue)
+    ELSE
+      RETURN { "ERROR" => "Unknown key formatting operation" }
+    ENDIF
+  NEXT
+RETURN { "RESULT" => xValue }
+
 FUNCTION DBF_PROCEDURE_CALL(cCommand, cData)
     LOCAL hResult
     IF cCommand == "LIST_FIELDS"
       hResult := INTERNAL_LIST_FIELDS()
     ELSEIF cCommand == "SET_VALUES"  
       hResult := INTERNAL_SET_VALUES(cData)
+    ELSEIF cCommand == "FORMAT_KEY"
+      hResult := INTERNAL_FORMAT_KEY(cData)
     ELSE
       hResult := { "ERROR" => "Unknown command name: " + cCommand}
     ENDIF
