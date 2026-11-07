@@ -279,6 +279,21 @@ namespace HarbourDBF.NET
             return entries ?? Array.Empty<object>();
         }
 
+        internal static object[] GetValuesForMapping(IEnumerable<string> fieldsNames, Encoding enc)
+        {
+            if (!DbfRuntime.IsExecutorThread) return DbfRuntime.Invoke(() => GetValuesForMapping(fieldsNames, enc));
+            DbfSession.CheckCallback();
+            var raw = _GetValues(JsonConvert.SerializeObject(fieldsNames));
+            var json = UnsafeUtils.GetString(raw, enc);
+            if (GetLastError(out var error)) throw new HarbourException(error);
+            if (json == null) throw new InvalidOperationException("GetValues response is empty.");
+            return JsonConvert.DeserializeObject<object[]>(json, new JsonSerializerSettings
+            {
+                FloatParseHandling = FloatParseHandling.Decimal,
+                DateParseHandling = DateParseHandling.None
+            }) ?? Array.Empty<object>();
+        }
+
         [DllImport(Constants.DllName, EntryPoint = "_DBF_RECORD_LOCK", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         private static extern bool _RecordLock(int recordNumber, bool unlock);
         /// <summary>

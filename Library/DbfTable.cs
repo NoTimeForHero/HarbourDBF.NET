@@ -102,6 +102,7 @@ namespace HarbourDBF.NET
                 bool valid = (dbf.Type == "C" || dbf.Type == "M") && type == typeof(string)
                     || dbf.Type == "L" && type == typeof(bool)
                     || (dbf.Type == "N" && dbf.Point == 0 || dbf.Type == "+" || dbf.Type == "^") && (type == typeof(int) || type == typeof(long))
+                    || dbf.Type == "N" && dbf.Length <= 15 && dbf.Point < dbf.Length && type == typeof(decimal)
                     || (dbf.Type == "D" || dbf.Type == "@" || dbf.Type == "=") && underlying == typeof(DateTime) && Nullable.GetUnderlyingType(type) != null;
                 if (!valid) throw new InvalidOperationException("Unsupported property type for DBF field " + field.Name + " (" + dbf.Type + ").");
                 fieldTypes[field.Name] = dbf.Type;
@@ -483,7 +484,7 @@ namespace HarbourDBF.NET
             DbfHarbour.GoTo(recordNumber);
             bool deleted = DbfHarbour.IsRecordDeleted;
             if (deleted && deletedRecords == DbfDeletedRecords.Exclude) return null;
-            object[] values = DbfHarbour.GetValues(fields.Select(x => x.Name), encoding).ToArray();
+            object[] values = DbfHarbour.GetValuesForMapping(fields.Select(x => x.Name), encoding);
             if (values.Length != fields.Count) throw new InvalidOperationException("DBF returned an unexpected number of fields.");
             var model = new T();
             for (int i = 0; i < fields.Count; i++)
@@ -510,11 +511,19 @@ namespace HarbourDBF.NET
                 long integer;
                 if (value is long n) integer = n;
                 else if (value is int i) integer = i;
+                else if (value is decimal m && decimal.Truncate(m) == m) integer = checked((long)m);
                 else if (value is double d && !double.IsNaN(d) && !double.IsInfinity(d) &&
                          Math.Abs(d) < 9007199254740992d && Math.Truncate(d) == d)
                     integer = checked((long)d);
                 else throw new InvalidOperationException("The DBF numeric value cannot be converted to an exact integer.");
                 return type == typeof(int) ? (object)checked((int)integer) : integer;
+            }
+            if (type == typeof(decimal))
+            {
+                if (value is decimal m) return m;
+                if (value is long n) return (decimal)n;
+                if (value is int i) return (decimal)i;
+                throw new InvalidOperationException("The DBF numeric value cannot be converted to an exact decimal.");
             }
             if (value == null || !type.IsInstanceOfType(value)) throw new InvalidOperationException("Unexpected DBF value for " + dbfType);
             return value;
@@ -659,7 +668,9 @@ namespace HarbourDBF.NET
             }
             else if (field.Type == "N")
             {
-                string text = Convert.ToString(value, CultureInfo.InvariantCulture);
+                if (value is decimal number && decimal.Round(number, field.Point) != number)
+                    throw new ArgumentException("Number exceeds the precision of field " + field.Name + ".");
+                string text = value is decimal amount ? amount.ToString("F" + field.Point, CultureInfo.InvariantCulture) : Convert.ToString(value, CultureInfo.InvariantCulture);
                 if (value == null || text.Length > field.Length) throw new ArgumentException("Number exceeds the width of field " + field.Name + ".");
             }
             else if (field.Type == "D" || field.Type == "@")

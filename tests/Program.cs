@@ -96,6 +96,7 @@ internal static class Program
         public string Name { get; set; }
         public DateTime? Birth { get; set; }
         public bool Active { get; set; }
+        public decimal Amount { get; set; }
     }
 
     private sealed class TypedSpecial
@@ -115,6 +116,23 @@ internal static class Program
         public string Name { get { ObservedCodepage = DbfHarbour.Eval("hb_cdpSelect()"); return name; } set { name = value; } }
         public int View { get; set; }
         public DateTime? Birth { get; set; }
+    }
+
+    private sealed class NumericModel
+    {
+        public int Id { get; set; }
+        public decimal Amount { get; set; }
+        public decimal Rate { get; set; }
+    }
+
+    private sealed class NumericMapping : DbfMapping<NumericModel>
+    {
+        public NumericMapping()
+        {
+            Field(row => row.Id, "ID");
+            Field(row => row.Amount, "AMOUNT");
+            Field(row => row.Rate, "RATE");
+        }
     }
 
     private sealed class ComplexMapping : DbfMapping<ComplexModel>
@@ -190,6 +208,7 @@ internal static class Program
             Field(x => x.Name, "NAME").TrimEnd();
             Field(x => x.Birth, "BIRTH");
             Field(x => x.Active, "ACTIVE");
+            Field(x => x.Amount, "AMOUNT");
             ById = Index(x => x.Id, "basic_id.cdx", "ID");
             ByName = Index(x => x.Name, "basic_name.cdx", "NAME");
         }
@@ -223,6 +242,7 @@ internal static class Program
             var first = table.ReadAt(1);
             Equal(1, first.Value.Id, "typed id");
             Equal("ALICE", first.Value.Name, "typed name");
+            Equal(12.50m, first.Value.Amount, "typed decimal");
             Equal(new DateTime(1990, 1, 2), first.Value.Birth.Value, "typed date");
             Require(table.ReadAt(4) == null, "missing typed record");
             Equal("BOB", table.Index(mapping.ById).FindFirst(2).Value.Name, "typed numeric seek");
@@ -353,7 +373,7 @@ internal static class Program
         using (var session = DbfSession.Open(copy))
         using (var table = session.OpenTable("basic.dbf", mapping, "UA866", Cp866, mode: DbfOpenMode.SharedReadWrite))
         {
-            var model = new TypedModel { Id = 9, Name = "НОВАЯ", Birth = new DateTime(2000, 1, 2), Active = true };
+            var model = new TypedModel { Id = 9, Name = "НОВАЯ", Birth = new DateTime(2000, 1, 2), Active = true, Amount = 42.75m };
             Require(DbfHarbour.RecordLock(1), "could not arrange existing lock");
             bool existingLockRejected = false;
             try { table.Insert(model); } catch (InvalidOperationException) { existingLockRejected = true; }
@@ -368,9 +388,16 @@ internal static class Program
             rejected = false;
             try { table.Insert(new TypedModel { Id = 9, Name = "🙂" }); } catch (EncoderFallbackException) { rejected = true; }
             Require(rejected && table.Scan().Count() == 3, "unencodable insert changed table");
+            rejected = false;
+            try { table.Insert(new TypedModel { Id = 9, Name = "BAD", Amount = 1.001m }); } catch (ArgumentException) { rejected = true; }
+            Require(rejected && table.Scan().Count() == 3, "decimal rounding accepted");
+            rejected = false;
+            try { table.Insert(new TypedModel { Id = 9, Name = "BAD", Amount = 10000000m }); } catch (ArgumentException) { rejected = true; }
+            Require(rejected && table.Scan().Count() == 3, "decimal overflow accepted");
             var added = table.Insert(model);
             Equal(4L, added.RecordNumber, "insert record number");
             Equal("НОВАЯ", added.Value.Name, "insert value");
+            Equal(42.75m, added.Value.Amount, "insert decimal");
             Require(!ReferenceEquals(model, added.Value), "insert returned input model");
             Equal(9, table.Index(mapping.ById).FindFirst(9).Value.Id, "insert numeric index");
             Equal(9, table.Index(mapping.ByName).FindFirst("НОВАЯ").Value.Id, "insert text index");
@@ -380,6 +407,7 @@ internal static class Program
         {
             Equal(4, table.Scan().Count(), "insert persisted");
             Equal("НОВАЯ", table.Index(mapping.ById).FindFirst(9).Value.Name, "reopened insert index");
+            Equal(42.75m, table.ReadAt(4).Value.Amount, "reopened decimal");
         }
         foreach (string file in new[] { "special.dbf", "special_id.cdx", "special_time.cdx" })
             File.Copy(Path.Combine(dir, file), Path.Combine(copy, file));
@@ -651,6 +679,20 @@ internal static class Program
             catch (HarbourException) { rejected = true; }
             Require(rejected, "unknown VM codepage accepted");
             Equal(originalCodepage, DbfHarbour.Eval("hb_cdpSelect()"), "VM codepage restored after invalid codepage");
+        }
+        using (var session = DbfSession.Open(copy))
+        using (var numeric = session.OpenTable("numeric.dbf", new NumericMapping(), "UA866", Cp866, mode: DbfOpenMode.SharedReadWrite))
+        {
+            var first = numeric.ReadAt(1);
+            var second = numeric.ReadAt(2);
+            Equal(999999999999.99m, first.Value.Amount, "decimal positive boundary");
+            Equal(999999999.99999m, first.Value.Rate, "decimal positive precision");
+            Equal(-99999999999.99m, second.Value.Amount, "decimal negative boundary");
+            Equal(-99999999.99999m, second.Value.Rate, "decimal negative precision");
+            Equal(0.00001m, numeric.ReadAt(3).Value.Rate, "decimal smallest unit");
+            numeric.Update(first.Reference, row => { row.Amount = 999999999999.98m; row.Rate = 999999999.99998m; });
+            numeric.Update(second.Reference, row => { row.Amount = -99999999999.98m; row.Rate = -99999999.99998m; });
+            numeric.Insert(new NumericModel { Id = 4, Amount = 0.01m, Rate = 0.00001m }, strict: true);
         }
         Equal(originalCodepage, DbfHarbour.Eval("hb_cdpSelect()"), "VM codepage restored");
         RunComplexHelper(generator, copy, "verify");

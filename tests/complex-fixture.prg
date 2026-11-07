@@ -27,9 +27,15 @@ PROCEDURE Main( cDir, cMode )
          OrdSetFocus( "NAME" )
          Check( dbSeek( PadR(cOther,20) ) .AND. FIELD->ID == 1, "typed update uppercase key" )
          dbCloseArea()
+         dbUseArea( .T., "DBFCDX", cDir + "numeric.dbf", "NUMERIC", .F., .T., "UA866" )
+         Check( LastRec() == 4, "numeric record count" )
+         dbGoTo( 1 ); Check( FIELD->AMOUNT == 999999999999.98 .AND. FIELD->RATE == 999999999.99998, "positive numeric boundary" )
+         dbGoTo( 2 ); Check( FIELD->AMOUNT == -99999999999.98 .AND. FIELD->RATE == -99999999.99998, "negative numeric boundary" )
+         dbGoTo( 4 ); Check( FIELD->AMOUNT == 0.01 .AND. FIELD->RATE == 0.00001, "small numeric values" )
+         dbCloseArea()
          OutStd( "PASS: independently verified typed expression indexes" + hb_eol() )
       ELSE
-      Check( ! hb_FileExists( cDbf ) .AND. ! hb_FileExists( cCdx ), "refusing to overwrite fixture" )
+      Check( ! hb_FileExists( cDbf ) .AND. ! hb_FileExists( cCdx ) .AND. ! hb_FileExists( cDir + "numeric.dbf" ), "refusing to overwrite fixture" )
       cStage := "create"
       dbCreate( cDbf, { { "ID", "N", 6, 0 }, { "NAME", "C", 20, 0 }, { "VIEW", "N", 4, 0 }, { "BIRTH", "D", 8, 0 } }, "DBFCDX" )
       dbUseArea( .T., "DBFCDX", cDbf, "COMPLEX", .F., .F., "UA866" )
@@ -60,6 +66,12 @@ PROCEDURE Main( cDir, cMode )
       OrdSetFocus( "VIEWNAME" ); Check( dbSeek( Str(1,4,0)+PadR(cUpper,30) ) .AND. FIELD->ID == 1, "composite search" )
       OrdSetFocus( "CATEGORY" ); Check( dbSeek( "A"+PadR(cUpper,30) ) .AND. FIELD->ID == 1, "category search" )
       OrdSetFocus( "DATEKEY" ); Check( dbSeek( "20000102" ) .AND. FIELD->ID == 1, "date key search" )
+      dbCloseArea()
+      dbCreate( cDir + "numeric.dbf", { { "ID", "N", 4, 0 }, { "AMOUNT", "N", 15, 2 }, { "RATE", "N", 15, 5 } }, "DBFCDX" )
+      dbUseArea( .T., "DBFCDX", cDir + "numeric.dbf", "NUMERIC", .F., .F., "UA866" )
+      APPEND BLANK; REPLACE ID WITH 1, AMOUNT WITH 999999999999.99, RATE WITH 999999999.99999
+      APPEND BLANK; REPLACE ID WITH 2, AMOUNT WITH -99999999999.99, RATE WITH -99999999.99999
+      APPEND BLANK; REPLACE ID WITH 3, AMOUNT WITH 0.01, RATE WITH 0.00001
       dbCloseArea()
       OutStd( "PASS: generated and verified multi-tag fixture" + hb_eol() )
       ENDIF

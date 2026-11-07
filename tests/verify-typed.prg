@@ -18,7 +18,7 @@ PROCEDURE Main( cRoot )
       OrdListAdd( cDir + "basic_id.cdx" ); OrdListAdd( cDir + "basic_name.cdx" )
       Check( LastRec() == 4, "insert count" )
       OrdSetFocus( "ID" ); Check( dbSeek( 9 ) .AND. RecNo() == 4, "insert ID index" )
-      Check( RTrim( FIELD->NAME ) == cNew .AND. FIELD->BIRTH == hb_SToD( "20000102" ), "insert fields" )
+      Check( RTrim( FIELD->NAME ) == cNew .AND. FIELD->BIRTH == hb_SToD( "20000102" ) .AND. FIELD->AMOUNT == 42.75, "insert fields" )
       OrdSetFocus( "NAME" ); Check( dbSeek( PadR( cNew, 20 ) ) .AND. FIELD->ID == 9, "insert name index" )
       dbCloseArea()
 
