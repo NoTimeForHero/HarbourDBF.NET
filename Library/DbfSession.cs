@@ -25,7 +25,9 @@ namespace HarbourDBF.NET
         public static DbfSession Open(string root) => DbfRuntime.Invoke(() =>
         {
             if (callbackActive) throw new InvalidOperationException("A session cannot be opened from an update callback.");
-            return new DbfSession(root);
+            var session = new DbfSession(root);
+            DbfRuntime.Register(session);
+            return session;
         });
 
         internal void Check()
@@ -73,6 +75,7 @@ namespace HarbourDBF.NET
                 try { table.Dispose(); } catch (Exception error) { errors.Add(error); }
             }
             disposed = true;
+            DbfRuntime.Unregister(this);
             if (errors.Count != 0) throw new AggregateException("Failed to close one or more tables.", errors);
         }
     }

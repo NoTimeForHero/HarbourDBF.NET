@@ -942,6 +942,7 @@ internal static class Program
 
     private static int RuntimeLifecycle()
     {
+        string temporary = Path.Combine(Path.GetTempPath(), "harbour-lifecycle-" + Guid.NewGuid().ToString("N"));
         try
         {
             Require(VmInitThread() == 0, "VM initialized in DLL loader");
@@ -976,6 +977,12 @@ internal static class Program
                     return false;
                 }).GetAwaiter().GetResult();
                 Require(rejected, "reentrant runtime submission accepted");
+                Directory.CreateDirectory(temporary);
+                string source = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "fixtures");
+                foreach (string file in new[] { "basic.dbf", "basic.fpt", "basic_id.cdx", "basic_name.cdx" })
+                    File.Copy(Path.Combine(source, file), Path.Combine(temporary, file));
+                var leaked = DbfSession.Open(temporary);
+                leaked.OpenTable("basic.dbf", new TypedMapping(), "UA866", Cp866);
                 using (var holding = new System.Threading.ManualResetEventSlim())
                 using (var finish = new System.Threading.ManualResetEventSlim())
                 {
@@ -993,6 +1000,7 @@ internal static class Program
                     Require(stopping.Wait(10000), "runtime shutdown timed out");
                 }
                 Equal(worker, VmQuitThread(), "VM shut down on executor thread");
+                using (File.Open(Path.Combine(temporary, "basic.dbf"), FileMode.Open, FileAccess.ReadWrite, FileShare.None)) { }
                 rejected = false;
                 try { DbfHarbour.Eval("1"); } catch (ObjectDisposedException) { rejected = true; }
                 Require(rejected, "runtime restarted after shutdown");
@@ -1000,6 +1008,7 @@ internal static class Program
             return 0;
         }
         catch (Exception error) { Console.Error.WriteLine(error); return 1; }
+        finally { if (Directory.Exists(temporary)) Directory.Delete(temporary, true); }
     }
 
     private static void RuntimeLifecycleProcess()

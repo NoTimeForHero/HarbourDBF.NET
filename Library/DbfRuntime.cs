@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -12,6 +13,7 @@ namespace HarbourDBF.NET
         private static DbfExecutor executor;
         private static int capacity = 256;
         private static bool stopped;
+        private static readonly List<DbfSession> Sessions = new List<DbfSession>();
 
         [DllImport(Constants.DllName, EntryPoint = "_DBF_VM_INIT", CallingConvention = CallingConvention.Cdecl)]
         private static extern void Init();
@@ -38,7 +40,7 @@ namespace HarbourDBF.NET
                     if (stopped && (executor == null || !executor.IsExecutorThread)) throw new ObjectDisposedException(nameof(DbfRuntime));
                     if (executor == null)
                     {
-                        executor = new DbfExecutor(capacity, Init, Quit);
+                        executor = new DbfExecutor(capacity, Init, ShutdownVm);
                         AppDomain.CurrentDomain.ProcessExit += (_, __) => { try { Shutdown(); } catch { /* Process exit cannot surface cleanup failures. */ } };
                     }
                     return executor;
@@ -51,6 +53,23 @@ namespace HarbourDBF.NET
         internal static bool IsExecutorThread
         {
             get { var current = Volatile.Read(ref executor); return current != null && current.IsExecutorThread; }
+        }
+
+        internal static void Register(DbfSession session) => Sessions.Add(session);
+        internal static void Unregister(DbfSession session) => Sessions.Remove(session);
+
+        private static void ShutdownVm()
+        {
+            var errors = new List<Exception>();
+            while (Sessions.Count != 0)
+            {
+                var session = Sessions[Sessions.Count - 1];
+                Sessions.RemoveAt(Sessions.Count - 1);
+                try { session.Dispose(); } catch (Exception error) { errors.Add(error); }
+            }
+            try { DbfHarbour.Eval("DbCloseAll()"); } catch (Exception error) { errors.Add(error); }
+            try { Quit(); } catch (Exception error) { errors.Add(error); }
+            if (errors.Count != 0) throw new AggregateException("Failed to close Harbour resources.", errors);
         }
 
         /// <summary>Ожидает место в очереди с отменой; после постановки операция выполняется до завершения.</summary>
