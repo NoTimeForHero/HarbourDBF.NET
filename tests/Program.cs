@@ -960,7 +960,22 @@ internal static class Program
                     return false;
                 }).GetAwaiter().GetResult();
                 Require(rejected, "reentrant runtime submission accepted");
-                DbfRuntime.Shutdown();
+                using (var holding = new System.Threading.ManualResetEventSlim())
+                using (var finish = new System.Threading.ManualResetEventSlim())
+                {
+                    var running = DbfRuntime.ExecuteAsync(() => { holding.Set(); finish.Wait(); return DbfHarbour.Eval("2"); });
+                    Require(holding.Wait(10000), "runtime shutdown test did not start");
+                    var accepted = DbfRuntime.ExecuteAsync(() => DbfHarbour.Eval("3"));
+                    var waiting = DbfRuntime.ExecuteAsync(() => 4);
+                    var stopping = System.Threading.Tasks.Task.Run(() => DbfRuntime.Shutdown());
+                    bool closed = false;
+                    try { waiting.GetAwaiter().GetResult(); } catch (ObjectDisposedException) { closed = true; }
+                    Require(closed, "runtime shutdown did not reject waiting submission");
+                    finish.Set();
+                    Equal("2", running.GetAwaiter().GetResult(), "running operation during shutdown");
+                    Equal("3", accepted.GetAwaiter().GetResult(), "accepted operation during shutdown");
+                    Require(stopping.Wait(10000), "runtime shutdown timed out");
+                }
                 Equal(worker, VmQuitThread(), "VM shut down on executor thread");
                 rejected = false;
                 try { DbfHarbour.Eval("1"); } catch (ObjectDisposedException) { rejected = true; }
