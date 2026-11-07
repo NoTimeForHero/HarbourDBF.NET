@@ -48,6 +48,7 @@ internal static class Program
                 TypedInsert(working);
                 TypedIndexEnumeration(working);
                 TypedUpdate(working);
+                TypedUnchangedMemo(working);
                 TypedLockContention(working);
                 TypedConcurrentWrites(working);
                 TypedExpressionIndexMaintenance(working);
@@ -147,6 +148,21 @@ internal static class Program
     private sealed class NarrowMapping : DbfMapping<NarrowModel>
     {
         public NarrowMapping() { Field(row => row.Number, "NUM"); }
+    }
+    private sealed class MemoModel
+    {
+        public int Id { get; set; }
+        public string Note { get; set; }
+    }
+    private sealed class MemoMapping : DbfMapping<MemoModel>
+    {
+        public MemoMapping()
+        {
+            Field(row => row.Id, "ID");
+            Field(row => row.Note, "NOTE").TrimEnd();
+            IndexBag("basic_id.cdx");
+            IndexBag("basic_name.cdx");
+        }
     }
 
     private sealed class NestedMapping : DbfMapping<TypedModel>
@@ -983,6 +999,39 @@ internal static class Program
             }
         }
         Console.WriteLine("PASS: lock contention across processes");
+    }
+
+    private static void TypedUnchangedMemo(string dir)
+    {
+        string copy = Path.Combine(dir, "typed-memo");
+        Directory.CreateDirectory(copy);
+        foreach (string file in new[] { "basic.dbf", "basic.fpt", "basic_id.cdx", "basic_name.cdx" })
+            File.Copy(Path.Combine(dir, file), Path.Combine(copy, file));
+        DbfHarbour.Use(Path.Combine(copy, "basic.dbf"), "MEMO_SETUP", true, "UA866");
+        try
+        {
+            DbfHarbour.Indexes.Load(Path.Combine(copy, "basic_id.cdx"));
+            DbfHarbour.Indexes.Load(Path.Combine(copy, "basic_name.cdx"));
+            DbfHarbour.GoTo(1);
+            DbfHarbour.SetValues(new Dictionary<string, object> { { "NOTE", "memo  " } }, Cp866);
+            DbfHarbour.Commit();
+        }
+        finally { DbfHarbour.CloseArea("MEMO_SETUP"); }
+        using (var session = DbfSession.Open(copy))
+        using (var table = session.OpenTable("basic.dbf", new MemoMapping(), "UA866", Cp866, mode: DbfOpenMode.SharedReadWrite))
+        {
+            var row = table.ReadAt(1);
+            Equal("memo", row.Value.Note, "trimmed memo in model");
+            table.Update(row.Reference, value => value.Id = 22);
+        }
+        DbfHarbour.UseReadOnly(Path.Combine(copy, "basic.dbf"), "MEMO_CHECK", true, "UA866");
+        try
+        {
+            DbfHarbour.GoTo(1);
+            Equal("memo  ", DbfHarbour.GetValues(new[] { "NOTE" }, Cp866).Single(), "unchanged memo trailing spaces");
+        }
+        finally { DbfHarbour.CloseArea("MEMO_CHECK"); }
+        Console.WriteLine("PASS: unchanged trimmed memo preserves original data");
     }
 
     private sealed class MappingProbe : DbfMapping<MappingModel>
