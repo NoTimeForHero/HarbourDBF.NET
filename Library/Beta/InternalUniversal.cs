@@ -3,6 +3,7 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -27,8 +28,20 @@ namespace HarbourDBF.NET.Beta
                 var type = "?";
                 if (value is DateTime dt)
                 {
-                    value = dt.ToString("dd.MM.yyyy");
-                    type = "D";
+                    var fieldType = fields.FieldsByName[key].Type;
+                    if (fieldType == "D")
+                    {
+                        value = dt.ToString("yyyyMMdd", CultureInfo.InvariantCulture);
+                        type = "D";
+                    }
+                    else if (fieldType == "@" || fieldType == "T")
+                    {
+                        if (dt.Ticks % TimeSpan.TicksPerMillisecond != 0)
+                            throw new ArgumentException("Timestamp precision is limited to milliseconds.", nameof(inputValues));
+                        value = dt.ToString("yyyyMMddHHmmssfff", CultureInfo.InvariantCulture);
+                        type = "T";
+                    }
+                    else throw new ArgumentException($"Field {pair.Key} is not a date or timestamp.", nameof(inputValues));
                 }
                 values.Add(new[] { order, value, type });
             }

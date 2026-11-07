@@ -28,7 +28,9 @@ FUNCTION INTERNAL_SET_VALUES(cData)
     xValue := aRow[2]
     cFieldType := aRow[3]
     IF cFieldType == "D"
-      xValue := CtoD(xValue)
+      xValue := hb_SToD(xValue)
+    ELSEIF cFieldType == "T"
+      xValue := hb_SToT(xValue)
     ENDIF
     FieldPut(nOrder, xValue)
   NEXT
