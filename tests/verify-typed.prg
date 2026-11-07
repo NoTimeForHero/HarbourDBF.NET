@@ -36,6 +36,12 @@ PROCEDURE Main( cRoot )
       OrdSetFocus( "NAME" ); Check( dbSeek( PadR( cUpdated, 20 ) ) .AND. RecNo() == 1, "updated name index" )
       Check( Deleted() .AND. FIELD->AMOUNT == 12.50 .AND. FIELD->NOTE == "First memo", "updated and unmapped fields" )
       dbCloseArea()
+
+      cDir := hb_DirSepAdd( cRoot ) + "concurrent" + hb_ps()
+      dbUseArea( .T., "DBFCDX", cDir + "basic.dbf", "CHECK", .F., .T., "UA866" )
+      OrdListAdd( cDir + "basic_id.cdx" ); OrdListAdd( cDir + "basic_name.cdx" )
+      OrdSetFocus( "ID" ); Check( dbSeek( 51 ) .AND. RecNo() == 1 .AND. RTrim(FIELD->NAME) == "ALICE", "concurrent updates and index" )
+      dbCloseArea()
       OutStd( "PASS: independent Harbour typed writes and indexes" + hb_eol() )
    RECOVER USING oError
       OutErr( "Independent verification failed: " + oError:Description + hb_eol() )

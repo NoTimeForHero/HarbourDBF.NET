@@ -17,6 +17,7 @@ internal static class Program
     private static int Main(string[] args)
     {
         if (args.Length == 2 && args[0] == "--hold-lock") return HoldLock(args[1]);
+        if (args.Length == 3 && args[0] == "--concurrent-update") return ConcurrentUpdate(args[1], int.Parse(args[2], CultureInfo.InvariantCulture));
         if (args.Length == 1 && args[0] == "--runtime-lifecycle") return RuntimeLifecycle();
         try { PathResolution(); MappingDeclarations(); ExactIntegerConversion(); ExecutorQueue(); RuntimeLifecycleProcess(); }
         catch (Exception error) { Console.Error.WriteLine("FAIL: " + error); return 1; }
@@ -48,6 +49,7 @@ internal static class Program
                 TypedIndexEnumeration(working);
                 TypedUpdate(working);
                 TypedLockContention(working);
+                TypedConcurrentWrites(working);
                 TypedExpressionIndexMaintenance(working);
                 VerifyTypedWithHarbour(working);
                 WriteBasic(working);
@@ -663,6 +665,75 @@ internal static class Program
             return 0;
         }
         catch (Exception error) { Console.Error.WriteLine(error); return 1; }
+    }
+
+    private static int ConcurrentUpdate(string dir, int iterations)
+    {
+        try
+        {
+            using (var session = DbfSession.Open(dir))
+            using (var table = session.OpenTable("basic.dbf", new TypedMapping(), "UA866", Cp866, mode: DbfOpenMode.SharedReadWrite))
+            {
+                var reference = table.ReadAt(1).Reference;
+                for (int i = 0; i < iterations; i++)
+                {
+                    int attempts = 0;
+                    while (true)
+                    {
+                        try { table.Update(reference, row => row.Id++); break; }
+                        catch (DbfLockException)
+                        {
+                            if (++attempts > 10000) throw;
+                            System.Threading.Thread.Sleep(1);
+                        }
+                    }
+                }
+            }
+            return 0;
+        }
+        catch (Exception error) { Console.Error.WriteLine(error); return 1; }
+    }
+
+    private static void TypedConcurrentWrites(string dir)
+    {
+        string copy = Path.Combine(dir, "concurrent");
+        Directory.CreateDirectory(copy);
+        foreach (string file in new[] { "basic.dbf", "basic.fpt", "basic_id.cdx", "basic_name.cdx" })
+            File.Copy(Path.Combine(dir, file), Path.Combine(copy, file));
+        var children = new List<System.Diagnostics.Process>();
+        try
+        {
+            for (int i = 0; i < 2; i++)
+            {
+                var child = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = System.Reflection.Assembly.GetExecutingAssembly().Location,
+                    Arguments = "--concurrent-update \"" + copy + "\" 25",
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                });
+                Require(child != null, "concurrent update helper did not start");
+                children.Add(child);
+            }
+            foreach (var child in children)
+                Require(child.WaitForExit(30000) && child.ExitCode == 0, "concurrent update helper failed");
+            var mapping = new TypedMapping();
+            using (var session = DbfSession.Open(copy))
+            using (var table = session.OpenTable("basic.dbf", mapping, "UA866", Cp866))
+            {
+                Equal(51, table.ReadAt(1).Value.Id, "concurrent increments");
+                Equal(1L, table.Index(mapping.ById).FindFirst(51).RecordNumber, "concurrent index maintenance");
+            }
+        }
+        finally
+        {
+            foreach (var child in children)
+            {
+                if (!child.HasExited) { child.Kill(); child.WaitForExit(); }
+                child.Dispose();
+            }
+        }
+        Console.WriteLine("PASS: concurrent updates in separate processes");
     }
 
     private static void VerifyTypedWithHarbour(string dir)
