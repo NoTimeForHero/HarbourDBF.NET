@@ -494,12 +494,25 @@ internal static class Program
             Require(rejected && table.Scan().Count() == 3, "strict insert accepted unmapped generated fields");
         }
         using (var session = DbfSession.Open(copy))
-        using (var table = session.OpenTable("special.dbf", new TypedSpecialMapping(), "UA866", Cp866, mode: DbfOpenMode.SharedReadWrite))
+        using (var table = session.OpenTable("special.dbf", new TypedSpecialMapping(), "UA866", Cp866, mode: DbfOpenMode.ExclusiveReadWrite))
         {
+            long previousVersion = table.Scan().Max(row => row.Value.Version);
             var input = new TypedSpecial { Id = 999, Version = 999, Changed = new DateTime(2000, 1, 1), Name = "FOUR", Stamp = new DateTime(2020, 1, 2, 3, 4, 5) };
             var result = table.Insert(input, strict: true);
+            Equal(previousVersion + 1, result.Value.Version, "exclusive insert version");
             Require(result.Value.Id != 999 && result.Value.Version != 999 && result.Value.Changed != input.Changed, "generated fields written from model");
             Equal(input.Stamp, result.Value.Stamp, "insert timestamp");
+        }
+        string sharedDir = Path.Combine(copy, "shared-version");
+        Directory.CreateDirectory(sharedDir);
+        foreach (string file in new[] { "special.dbf", "special_id.cdx", "special_time.cdx" })
+            File.Copy(Path.Combine(dir, file), Path.Combine(sharedDir, file));
+        using (var session = DbfSession.Open(sharedDir))
+        using (var table = session.OpenTable("special.dbf", new TypedSpecialMapping(), "UA866", Cp866, mode: DbfOpenMode.SharedReadWrite))
+        {
+            long before = table.Scan().Max(row => row.Value.Version);
+            var result = table.Insert(new TypedSpecial { Name = "FOUR", Stamp = new DateTime(2020, 1, 2, 3, 4, 5) }, strict: true);
+            Equal(before + 2, result.Value.Version, "shared Harbour append version");
         }
         Console.WriteLine("PASS: typed insert validation and reopened indexes");
     }
