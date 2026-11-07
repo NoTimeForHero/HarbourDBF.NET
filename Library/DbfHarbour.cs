@@ -64,6 +64,26 @@ namespace HarbourDBF.NET
             if (GetLastError(out var error)) throw new HarbourException(error);
         }
 
+        [DllImport(Constants.DllName, EntryPoint = "_DBF_DELETE", CallingConvention = CallingConvention.Cdecl)]
+        private static extern void _Delete();
+
+        /// <summary>Пометить текущую запись удалённой.</summary>
+        public static void Delete()
+        {
+            _Delete();
+            if (GetLastError(out var error)) throw new HarbourException(error);
+        }
+
+        [DllImport(Constants.DllName, EntryPoint = "_DBF_RECALL", CallingConvention = CallingConvention.Cdecl)]
+        private static extern void _Recall();
+
+        /// <summary>Снять отметку удаления с текущей записи.</summary>
+        public static void Recall()
+        {
+            _Recall();
+            if (GetLastError(out var error)) throw new HarbourException(error);
+        }
+
 
         [DllImport(Constants.DllName, EntryPoint = "_DBF_COMMIT", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         private static extern IntPtr _Commit();

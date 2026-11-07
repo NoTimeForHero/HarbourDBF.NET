@@ -49,6 +49,14 @@ FUNCTION DBF_APPEND()
   APPEND BLANK
 RETURN NIL
 
+FUNCTION DBF_DELETE()
+  DbDelete()
+RETURN NIL
+
+FUNCTION DBF_RECALL()
+  DbRecall()
+RETURN NIL
+
 FUNCTION DBF_COMMIT()
   DbCommit()
 RETURN NIL
@@ -308,6 +316,18 @@ HB_EXPORT void* _export DBF_USE(const char* cDatabaseName, const char* cAlias, B
 HB_EXPORT void* _export DBF_APPEND()
 {
   hb_itemRelease( hb_itemDoC( "DBF_APPEND", 0) );
+  return NULL;
+}
+
+HB_EXPORT void* _export DBF_DELETE()
+{
+  hb_itemRelease( hb_itemDoC( "DBF_DELETE", 0) );
+  return NULL;
+}
+
+HB_EXPORT void* _export DBF_RECALL()
+{
+  hb_itemRelease( hb_itemDoC( "DBF_RECALL", 0) );
   return NULL;
 }
 
