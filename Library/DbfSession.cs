@@ -55,7 +55,9 @@ namespace HarbourDBF.NET
             codepage = DbfCodepage.Normalize(codepage);
             string resolved = DbfPaths.Table(Root, path);
             if (!File.Exists(resolved)) throw new FileNotFoundException("DBF file not found.", resolved);
-            var table = DbfCodepage.Run(codepage, () => new DbfTable<T>(this, resolved, mapping, codepage, encoding, deletedRecords, mode));
+            DbfTable<T> table;
+            try { table = DbfCodepage.Run(codepage, () => new DbfTable<T>(this, resolved, mapping, codepage, encoding, deletedRecords, mode)); }
+            catch (HarbourException error) { throw new DbfHarbourOperationException(resolved, "OpenTable", error); }
             tables.Add(table);
             return table;
         }

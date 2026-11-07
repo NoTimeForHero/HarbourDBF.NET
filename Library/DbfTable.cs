@@ -101,7 +101,7 @@ namespace HarbourDBF.NET
             foreach (var field in fields)
             {
                 var matches = schema.Where(x => string.Equals(x.Name, field.Name, StringComparison.OrdinalIgnoreCase)).ToArray();
-                if (matches.Length != 1) throw new InvalidOperationException("DBF field not found or ambiguous: " + field.Name);
+                if (matches.Length != 1) throw new DbfMappingException(tablePath, "DBF field not found or ambiguous: " + field.Name);
                 var dbf = matches[0];
                 schemaFields[field.Name] = dbf;
                 Type type = field.Property.PropertyType;
@@ -111,14 +111,19 @@ namespace HarbourDBF.NET
                     || (dbf.Type == "N" && dbf.Point == 0 || dbf.Type == "+" || dbf.Type == "^") && (type == typeof(int) || type == typeof(long))
                     || dbf.Type == "N" && dbf.Length <= 15 && dbf.Point < dbf.Length && type == typeof(decimal)
                     || (dbf.Type == "D" || dbf.Type == "@" || dbf.Type == "=") && underlying == typeof(DateTime) && Nullable.GetUnderlyingType(type) != null;
-                if (!valid) throw new InvalidOperationException("Unsupported property type for DBF field " + field.Name + " (" + dbf.Type + ").");
+                if (!valid) throw new DbfMappingException(tablePath, "Unsupported property type for DBF field " + field.Name + " (" + dbf.Type + ").");
                 fieldTypes[field.Name] = dbf.Type;
             }
         }
 
         private readonly Dictionary<string, string> fieldTypes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-        private TResult InCodepage<TResult>(Func<TResult> action) => DbfRuntime.Invoke(() => DbfCodepage.Run(codepage, action));
+        private TResult InCodepage<TResult>(Func<TResult> action, [System.Runtime.CompilerServices.CallerMemberName] string operation = null)
+        {
+            try { return DbfRuntime.Invoke(() => DbfCodepage.Run(codepage, action)); }
+            catch (DbfHarbourOperationException) { throw; }
+            catch (HarbourException error) { throw new DbfHarbourOperationException(tablePath, operation, error); }
+        }
 
         private void LoadIndexes(string tablePath)
         {
@@ -130,7 +135,7 @@ namespace HarbourDBF.NET
                 if (!File.Exists(path)) throw new FileNotFoundException("Index file not found.", path);
                 string bagName = Path.GetFileNameWithoutExtension(path);
                 if (bagNames.TryGetValue(bagName, out var previous) && !string.Equals(previous, path, StringComparison.OrdinalIgnoreCase))
-                    throw new InvalidOperationException("Index files with the same bag name cannot be distinguished: " + bagName);
+                    throw new DbfMappingException(tablePath, "Index files with the same bag name cannot be distinguished: " + bagName);
                 bagNames[bagName] = path;
                 if (loaded.Add(path)) DbfHarbour.Indexes.Load(path);
             }
@@ -142,22 +147,22 @@ namespace HarbourDBF.NET
                 {
                     var data = JArray.Parse(DbfHarbour.Eval("{OrdName(" + order + "),OrdBagName(" + order + "),OrdKey(" + order + "),OrdDescend(" + order + "),OrdFor(" + order + "),OrdIsUnique(" + order + ")}"));
                     if (!string.Equals((string)data[0], index.Tag, StringComparison.OrdinalIgnoreCase)) continue;
-                    if (match != 0) throw new InvalidOperationException("Duplicate index tag: " + index.Tag);
+                    if (match != 0) throw new DbfMappingException(tablePath, "Duplicate index tag: " + index.Tag);
                     string bag = Path.GetFileNameWithoutExtension(DbfPaths.Index(tablePath, index.File));
                     if (!string.Equals((string)data[1], bag, StringComparison.OrdinalIgnoreCase) ||
                         (!index.IsSearchKey && !string.Equals(RemoveWhitespace((string)data[2]), RemoveWhitespace(index.HarbourExpression), StringComparison.OrdinalIgnoreCase)) ||
                         (bool)data[3] || !string.IsNullOrWhiteSpace((string)data[4]) || (bool)data[5] ||
                         !IsSupportedIndex(index))
-                        throw new InvalidOperationException("Unsupported or mismatched index tag: " + index.Tag);
+                        throw new DbfMappingException(tablePath, "Unsupported or mismatched index tag: " + index.Tag);
                     match = order;
                 }
-                if (match == 0) throw new InvalidOperationException("Index tag not found: " + index.Tag);
+                if (match == 0) throw new DbfMappingException(tablePath, "Index tag not found: " + index.Tag);
                 DbfHarbour.Indexes.Select(match);
                 string keyType = JsonConvert.DeserializeObject<string>(DbfHarbour.Eval("HDBF_KEYTYPE()"));
                 int width = int.Parse(DbfHarbour.Eval("HDBF_KEYSIZE()"), CultureInfo.InvariantCulture);
                 if (index.IsSearchKey)
                 {
-                    if (keyType != "C" || width < 1 || width > 254) throw new InvalidOperationException("SearchKey requires a fixed-width character tag: " + index.Tag);
+                    if (keyType != "C" || width < 1 || width > 254) throw new DbfMappingException(tablePath, "SearchKey requires a fixed-width character tag: " + index.Tag);
                     RunSearchBlock(index, null, true);
                     searchKeyWidths.Add(index, width);
                 }
@@ -167,7 +172,7 @@ namespace HarbourDBF.NET
                     int expectedWidth = index.IsComposite ? index.Parts.Sum(part => part.Format.Width.Value) :
                         index.Format != null ? index.Format.Width.Value : character ? schemaFields[index.Field.Name].Length : 0;
                     if (keyType != (character ? "C" : "N") || character && width != expectedWidth)
-                        throw new InvalidOperationException("Index tag key type or width does not match its mapping: " + index.Tag);
+                        throw new DbfMappingException(tablePath, "Index tag key type or width does not match its mapping: " + index.Tag);
                 }
                 orders.Add(index, match);
             }
@@ -512,7 +517,10 @@ namespace HarbourDBF.NET
             for (int i = 0; i < fields.Count; i++)
             {
                 var field = fields[i];
-                object value = ConvertValue(values[i], field.Property.PropertyType, fieldTypes[field.Name]);
+                object value;
+                try { value = ConvertValue(values[i], field.Property.PropertyType, fieldTypes[field.Name]); }
+                catch (Exception error) when (error is FormatException || error is OverflowException || error is InvalidOperationException || error is ArgumentException)
+                { throw new DbfValueException(tablePath, recordNumber, field.Name, error); }
                 if (field.TrimEnd && value is string s) value = s.TrimEnd();
                 field.Property.SetValue(model, value);
             }

@@ -143,6 +143,11 @@ internal static class Program
     {
         public WideMapping() { Field(row => row.Number, "NUM"); }
     }
+    private sealed class NarrowModel { public int Number { get; set; } }
+    private sealed class NarrowMapping : DbfMapping<NarrowModel>
+    {
+        public NarrowMapping() { Field(row => row.Number, "NUM"); }
+    }
 
     private sealed class NestedMapping : DbfMapping<TypedModel>
     {
@@ -325,7 +330,8 @@ internal static class Program
             try { table.Index(new TypedMapping().ById); } catch (ArgumentException) { rejected = true; }
             Require(rejected, "foreign index descriptor accepted");
             rejected = false;
-            try { session.OpenTable("basic.dbf", new BadIndexMapping(), "UA866", Cp866); } catch (InvalidOperationException) { rejected = true; }
+            try { session.OpenTable("basic.dbf", new BadIndexMapping(), "UA866", Cp866); }
+            catch (DbfMappingException error) { rejected = error.TablePath == Path.Combine(dir, "basic.dbf") && error.Message.Contains("NAME"); }
             Require(rejected, "mismatched index expression accepted");
             using (session.OpenTable("basic.dbf", new BagMapping("basic_name.cdx"), "UA866", Cp866))
                 Equal("2", DbfHarbour.Eval("OrdCount()"), "non-searchable index bag opened");
@@ -855,7 +861,7 @@ internal static class Program
             Equal(originalCodepage, DbfHarbour.Eval("hb_cdpSelect()"), "VM codepage restored after failure");
             rejected = false;
             try { session.OpenTable("complex.dbf", new ComplexMapping(), "UNKNOWN_CDP", Cp866); }
-            catch (HarbourException) { rejected = true; }
+            catch (DbfHarbourOperationException error) { rejected = error.Operation == "OpenTable" && error.InnerException is HarbourException; }
             Require(rejected, "unknown VM codepage accepted");
             Equal(originalCodepage, DbfHarbour.Eval("hb_cdpSelect()"), "VM codepage restored after invalid codepage");
         }
@@ -882,6 +888,17 @@ internal static class Program
             try { wide.Update(first.Reference, row => row.Number = long.MaxValue); } catch (ArgumentException) { rejected = true; }
             Require(rejected && wide.Read(first.Reference).Value.Number == 9007199254740993L, "unsafe integer write modified record");
             Equal(9007199254740991L, wide.Update(first.Reference, row => row.Number = 9007199254740991L).Value.Number, "safe integer boundary");
+        }
+        using (var session = DbfSession.Open(copy))
+        using (var narrow = session.OpenTable("wide.dbf", new NarrowMapping(), "UA866", Cp866))
+        {
+            bool contextual = false;
+            try { narrow.ReadAt(1); }
+            catch (DbfValueException error)
+            {
+                contextual = error.Field == "NUM" && error.RecordNumber == 1 && error.TablePath == Path.Combine(copy, "wide.dbf") && error.InnerException is OverflowException;
+            }
+            Require(contextual, "conversion error lost its field or cause");
         }
         Equal(originalCodepage, DbfHarbour.Eval("hb_cdpSelect()"), "VM codepage restored");
         RunComplexHelper(generator, copy, "verify");
