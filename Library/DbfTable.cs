@@ -34,14 +34,16 @@ namespace HarbourDBF.NET
         private readonly IReadOnlyList<DbfFieldMapping> fields;
         private readonly Encoding encoding;
         private readonly DbfMapping<T> mapping;
+        private readonly DbfDeletedRecords deletedRecords;
         private readonly Dictionary<DbfIndexDefinition, int> orders = new Dictionary<DbfIndexDefinition, int>();
         private readonly Dictionary<string, FieldType> schemaFields = new Dictionary<string, FieldType>(StringComparer.OrdinalIgnoreCase);
         private bool disposed;
 
-        internal DbfTable(DbfSession session, string path, DbfMapping<T> mapping, string codepage, Encoding encoding)
+        internal DbfTable(DbfSession session, string path, DbfMapping<T> mapping, string codepage, Encoding encoding, DbfDeletedRecords deletedRecords)
         {
             this.session = session;
             this.mapping = mapping;
+            this.deletedRecords = deletedRecords;
             this.encoding = (Encoding)(encoding ?? Constants.DefaultEncoding).Clone();
             this.encoding.DecoderFallback = DecoderFallback.ExceptionFallback;
             fields = mapping.Freeze();
@@ -145,7 +147,7 @@ namespace HarbourDBF.NET
             string oldDeleted = DbfHarbour.Eval("Set(11)");
             try
             {
-                DbfHarbour.Eval("Set(11,.T.)");
+                DbfHarbour.Eval(deletedRecords == DbfDeletedRecords.Exclude ? "Set(11,.T.)" : "Set(11,.F.)");
                 bool found;
                 if (key is int number) found = DbfHarbour.Indexes.Seek(number, false, last);
                 else if (key is string text)
@@ -173,7 +175,7 @@ namespace HarbourDBF.NET
             if (recordNumber > DbfHarbour.TotalRecords) return null;
             DbfHarbour.GoTo(recordNumber);
             bool deleted = DbfHarbour.IsRecordDeleted;
-            if (deleted) return null;
+            if (deleted && deletedRecords == DbfDeletedRecords.Exclude) return null;
             object[] values = DbfHarbour.GetValues(fields.Select(x => x.Name), encoding).ToArray();
             if (values.Length != fields.Count) throw new InvalidOperationException("DBF returned an unexpected number of fields.");
             var model = new T();

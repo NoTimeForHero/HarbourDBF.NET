@@ -166,9 +166,15 @@ internal static class Program
         using (var session = DbfSession.Open(copy))
         using (var table = session.OpenTable("basic.dbf", mapping, "UA866", Cp866))
         using (var other = session.OpenTable("basic.dbf", mapping, "UA866", Cp866))
+        using (var including = session.OpenTable("basic.dbf", mapping, "UA866", Cp866, DbfDeletedRecords.Include))
         {
             Require(table.ReadAt(2) == null && table.Index(mapping.ById).FindFirst(2) == null, "deleted record visible");
             Equal(2, table.Scan().Count(), "deleted record in scan");
+            var deleted = including.ReadAt(2);
+            Require(deleted != null && deleted.IsDeleted && including.Read(deleted.Reference).IsDeleted, "deleted record not returned");
+            Require(including.Index(mapping.ById).FindFirst(2).IsDeleted, "deleted indexed record not returned");
+            Equal(3, including.Scan().Count(), "scan including deleted records");
+            Require(table.Index(mapping.ById).FindFirst(2) == null, "deleted visibility leaked between tables");
             bool rejected = false;
             try { other.Read(table.ReadAt(1).Reference); } catch (ArgumentException) { rejected = true; }
             Require(rejected, "foreign record reference accepted");

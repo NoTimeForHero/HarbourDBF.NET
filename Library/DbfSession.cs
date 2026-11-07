@@ -6,6 +6,8 @@ using System.Threading;
 
 namespace HarbourDBF.NET
 {
+    public enum DbfDeletedRecords { Exclude, Include }
+
     /// <summary>Владеет таблицами и допускает работу только на создавшем сеанс потоке.</summary>
     public sealed class DbfSession : IDisposable
     {
@@ -37,13 +39,16 @@ namespace HarbourDBF.NET
             if (disposed) throw new ObjectDisposedException(nameof(DbfSession));
         }
 
-        public DbfTable<T> OpenTable<T>(string path, DbfMapping<T> mapping, string codepage = "", Encoding encoding = null) where T : class, new()
+        public DbfTable<T> OpenTable<T>(string path, DbfMapping<T> mapping, string codepage = "", Encoding encoding = null,
+            DbfDeletedRecords deletedRecords = DbfDeletedRecords.Exclude) where T : class, new()
         {
             Check();
             if (mapping == null) throw new ArgumentNullException(nameof(mapping));
+            if (deletedRecords != DbfDeletedRecords.Exclude && deletedRecords != DbfDeletedRecords.Include)
+                throw new ArgumentOutOfRangeException(nameof(deletedRecords));
             string resolved = DbfPaths.Table(Root, path);
             if (!File.Exists(resolved)) throw new FileNotFoundException("DBF file not found.", resolved);
-            var table = new DbfTable<T>(this, resolved, mapping, codepage, encoding);
+            var table = new DbfTable<T>(this, resolved, mapping, codepage, encoding, deletedRecords);
             tables.Add(table);
             return table;
         }
