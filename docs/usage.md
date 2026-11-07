@@ -44,6 +44,16 @@ using (var db = new Database(Path.Combine(dir, "basic.dbf"), exclusive: true, co
 
 `Beta.Database.RegisterIndex` подключает файл и связывает его с именем для `Search`; его `Search` сейчас принимает только `int`. Для других ключей используйте `DbfHarbour.Indexes`, предварительно выбрав область `db.Alias`. Индексное выражение, сортировка, состав тегов и настройки RDD влияют на результат. Примеры показывают два отдельных CDX на таблицу; они не подтверждают произвольные выражения, многотеговые CDX и все варианты `UNIQUE`/`FOR`.
 
+Например, если `db` — открытый `Beta.Database` для `special.dbf` и файл `special_time.cdx` уже подключён через `RegisterIndex`, поиск timestamp выглядит так:
+
+```csharp
+DbfHarbour.SelectArea(db.Alias);
+DbfHarbour.Indexes.Select("STAMP");
+var key = new DateTime(2026, 1, 1, 12, 0, 1, 123);
+if (DbfHarbour.Indexes.SeekTimestamp(key))
+    Console.WriteLine($"Номер записи: {DbfHarbour.ActiveRecord}");
+```
+
 При записи через Harbour RDD открытые индексы сопровождаются движком. Не открывайте только часть индексов, если остальные также должны оставаться актуальными. Не перестраивайте индексы перед проверкой корректности записи: это может скрыть ошибку.
 
 ## Ошибки и границы проверок
