@@ -40,9 +40,9 @@ namespace HarbourDBF.NET.Beta
 
         public Database(string path, string alias = null, bool exclusive = false, string codepage = "", bool useGlobalCache = false)
         {
-            this.alias = alias ?? "alias_" + Guid.NewGuid();
+            this.alias = alias ?? "A" + Guid.NewGuid().ToString("N");
             if (useGlobalCache) throw new NotImplementedException("Global cache is under construction!");
-            DbfHarbour.Use(path, alias, exclusive, codepage);
+            DbfHarbour.Use(path, this.alias, exclusive, codepage);
 
             // ReSharper disable once ConditionIsAlwaysTrueOrFalse
             if (!useGlobalCache || !globalFieldCache.TryGetValue(path, out _fieldsInfo))
