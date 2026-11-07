@@ -224,6 +224,15 @@ internal static class Program
         }
     }
 
+    private sealed class UnsupportedTagMapping : DbfMapping<ComplexModel>
+    {
+        public UnsupportedTagMapping(string tag)
+        {
+            Field(row => row.Id, "ID");
+            Index(row => row.Id, "complex.cdx", tag);
+        }
+    }
+
     private sealed class TypedSpecialMapping : DbfMapping<TypedSpecial>
     {
         public TypedSpecialMapping()
@@ -664,6 +673,13 @@ internal static class Program
         using (var session = DbfSession.Open(copy))
         using (var table = session.OpenTable("complex.dbf", mapping, "UA866", Cp866, mode: DbfOpenMode.SharedReadWrite))
         {
+            foreach (string tag in new[] { "BADFOR", "BADUNIQUE", "BADDESC" })
+            {
+                bool unsupported = false;
+                try { session.OpenTable("complex.dbf", new UnsupportedTagMapping(tag), "UA866", Cp866); }
+                catch (InvalidOperationException) { unsupported = true; }
+                Require(unsupported, "unsupported tag accepted: " + tag);
+            }
             Equal(3, table.Index(mapping.ByName).EqualTo("  алиса ").Count(), "formatted name search");
             Equal(2, table.Index(mapping.ByDate).EqualTo(new DateTime(2000, 1, 2)).Count(), "DTOS date search");
             bool badDate = false;
