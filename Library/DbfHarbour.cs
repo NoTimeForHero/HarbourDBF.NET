@@ -316,6 +316,20 @@ namespace HarbourDBF.NET
                 return value;
             }
 
+            [DllImport(Constants.DllName, EntryPoint = "_DBF_INDEX_SEEK_TEXT", CallingConvention = CallingConvention.Cdecl)]
+            private static extern bool _SeekText(byte[] searchValue, bool softSeek, bool findLast);
+
+            /// <summary>Поиск строкового ключа в кодировке открытой таблицы (по умолчанию CP866).</summary>
+            public static bool Seek(string searchValue, bool softSeek = false, bool findLast = false, Encoding encoding = null)
+            {
+                if (searchValue == null) throw new ArgumentNullException(nameof(searchValue));
+                if (searchValue.IndexOf('\0') >= 0) throw new ArgumentException("A key cannot contain a null character.", nameof(searchValue));
+                var key = UnsafeUtils.GetNullTerminatedBytes(searchValue, encoding ?? Constants.DefaultEncoding);
+                var value = _SeekText(key, softSeek, findLast);
+                if (GetLastError(out var error)) throw new HarbourException(error);
+                return value;
+            }
+
             /// <summary>
             /// Создание нового индекса в памяти
             /// </summary>

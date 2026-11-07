@@ -144,6 +144,9 @@ RETURN NIL
 FUNCTION DBF_INDEX_SEEK(nPosition, lSoftSeek, lFindLast)
 RETURN DbSeek(nPosition, lSoftSeek, lFindLast)
 
+FUNCTION DBF_INDEX_SEEK_TEXT(cKey, lSoftSeek, lFindLast)
+RETURN DbSeek(cKey, lSoftSeek, lFindLast)
+
 FUNCTION DBF_ORD_KEY_COUNT()
 RETURN OrdKeyCount()
 
@@ -419,6 +422,20 @@ HB_EXPORT HB_BOOL _export DBF_INDEX_SEEK(long arg1, HB_BOOL arg2, HB_BOOL arg3)
   hb_itemRelease( pArg1 );
   hb_itemRelease( pArg2 );
   hb_itemRelease( pArg3 );
+  hb_itemRelease( pResult );
+  return value;
+}
+
+HB_EXPORT HB_BOOL _export DBF_INDEX_SEEK_TEXT(const char * key, HB_BOOL softSeek, HB_BOOL findLast)
+{
+  PHB_ITEM pKey = hb_itemPutC( NULL, key );
+  PHB_ITEM pSoft = hb_itemPutL( NULL, softSeek );
+  PHB_ITEM pLast = hb_itemPutL( NULL, findLast );
+  PHB_ITEM pResult = hb_itemDoC( "DBF_INDEX_SEEK_TEXT", 3, pKey, pSoft, pLast );
+  HB_BOOL value = hb_itemGetL( pResult );
+  hb_itemRelease( pKey );
+  hb_itemRelease( pSoft );
+  hb_itemRelease( pLast );
   hb_itemRelease( pResult );
   return value;
 }
