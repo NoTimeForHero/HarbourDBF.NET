@@ -17,7 +17,7 @@ internal static class Program
     private static int Main(string[] args)
     {
         if (args.Length == 2 && args[0] == "--hold-lock") return HoldLock(args[1]);
-        try { PathResolution(); MappingDeclarations(); ExactIntegerConversion(); }
+        try { PathResolution(); MappingDeclarations(); ExactIntegerConversion(); ExecutorQueue(); }
         catch (Exception error) { Console.Error.WriteLine("FAIL: " + error); return 1; }
         if (IntPtr.Size != 4) { Console.Error.WriteLine("The current native DLL requires an x86 process."); return 1; }
         if (!File.Exists(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "hbdbf.dll"))) { Console.Error.WriteLine("Build HarbourLibrary/hbdbf.dll, then rebuild LightTests."); return 1; }
@@ -567,6 +567,63 @@ internal static class Program
         catch (System.Reflection.TargetInvocationException error) when (error.InnerException is OverflowException) { overflow = true; }
         Require(overflow, "integer overflow was accepted");
         Console.WriteLine("PASS: exact integer conversion");
+    }
+
+    private static void ExecutorQueue()
+    {
+        int initThread = 0, shutdownThread = 0;
+        using (var started = new System.Threading.ManualResetEventSlim())
+        using (var release = new System.Threading.ManualResetEventSlim())
+        {
+            var executor = new DbfExecutor(1,
+                () => initThread = System.Threading.Thread.CurrentThread.ManagedThreadId,
+                () => shutdownThread = System.Threading.Thread.CurrentThread.ManagedThreadId);
+            var first = executor.InvokeAsync(() => { started.Set(); release.Wait(); return System.Threading.Thread.CurrentThread.ManagedThreadId; }, System.Threading.CancellationToken.None);
+            Require(started.Wait(10000), "executor did not start first operation");
+            var second = executor.InvokeAsync(() => 2, System.Threading.CancellationToken.None);
+            using (var cancel = new System.Threading.CancellationTokenSource())
+            {
+                var waiting = executor.InvokeAsync(() => 3, cancel.Token);
+                Require(!waiting.IsCompleted, "full queue did not wait");
+                cancel.Cancel();
+                bool cancelled = false;
+                try { waiting.GetAwaiter().GetResult(); } catch (OperationCanceledException) { cancelled = true; }
+                Require(cancelled, "queue wait ignored cancellation");
+            }
+            var shutdownWaiter = executor.InvokeAsync(() => 4, System.Threading.CancellationToken.None);
+            var disposing = System.Threading.Tasks.Task.Run(() => executor.Dispose());
+            bool closed = false;
+            try { shutdownWaiter.GetAwaiter().GetResult(); } catch (ObjectDisposedException) { closed = true; }
+            Require(closed, "shutdown did not release queue waiter");
+            release.Set();
+            Equal(initThread, first.GetAwaiter().GetResult(), "executor worker thread");
+            Equal(2, second.GetAwaiter().GetResult(), "queued work on shutdown");
+            Require(disposing.Wait(10000), "executor shutdown timed out");
+            Equal(initThread, shutdownThread, "executor shutdown thread");
+            bool disposed = false;
+            try { executor.Invoke(() => 1); } catch (ObjectDisposedException) { disposed = true; }
+            Require(disposed, "disposed executor accepted work");
+        }
+        DbfExecutor reentrant = null;
+        using (reentrant = new DbfExecutor(1, null, null))
+        {
+            bool rejected = reentrant.Invoke(() =>
+            {
+                try { reentrant.InvokeAsync(() => 1, System.Threading.CancellationToken.None).GetAwaiter().GetResult(); }
+                catch (InvalidOperationException) { return true; }
+                return false;
+            });
+            Require(rejected, "executor accepted reentrant queue operation");
+            bool propagated = false;
+            try { reentrant.Invoke<int>(() => throw new ApplicationException("work")); } catch (ApplicationException) { propagated = true; }
+            Require(propagated && reentrant.Invoke(() => 7) == 7, "executor did not survive operation failure");
+        }
+        bool initFailed = false, shutdownFailed = false;
+        try { new DbfExecutor(1, () => throw new ApplicationException("init"), null); } catch (ApplicationException) { initFailed = true; }
+        var failingShutdown = new DbfExecutor(1, null, () => throw new ApplicationException("shutdown"));
+        try { failingShutdown.Dispose(); } catch (ApplicationException) { shutdownFailed = true; }
+        Require(initFailed && shutdownFailed, "executor lifecycle failure was lost");
+        Console.WriteLine("PASS: bounded executor, cancellation and shutdown");
     }
 
     private static void ReadBasic(string dir)
