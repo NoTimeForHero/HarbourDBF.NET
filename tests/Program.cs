@@ -113,6 +113,16 @@ internal static class Program
         }
     }
 
+    private sealed class BagMapping : DbfMapping<TypedModel>
+    {
+        public BagMapping(string bag)
+        {
+            Field(x => x.Id, "ID");
+            Index(x => x.Id, "basic_id.cdx", "ID");
+            IndexBag(bag);
+        }
+    }
+
     private static void TypedRead(string dir)
     {
         var mapping = new TypedMapping();
@@ -134,6 +144,12 @@ internal static class Program
             rejected = false;
             try { session.OpenTable("basic.dbf", new BadIndexMapping(), "UA866", Cp866); } catch (InvalidOperationException) { rejected = true; }
             Require(rejected, "mismatched index expression accepted");
+            using (session.OpenTable("basic.dbf", new BagMapping("basic_name.cdx"), "UA866", Cp866))
+                Equal("2", DbfHarbour.Eval("OrdCount()"), "non-searchable index bag opened");
+            rejected = false;
+            try { session.OpenTable("basic.dbf", new BagMapping("missing.cdx"), "UA866", Cp866); }
+            catch (FileNotFoundException) { rejected = true; }
+            Require(rejected, "missing index bag accepted");
             Equal(1, table.Read(first.Reference).Value.Id, "table usable after failed open");
             var rows = table.Scan().Select(x => { Require(table.Read(first.Reference).Value.Id == 1, "nested read"); return x; }).ToList();
             Equal(3, rows.Count, "typed scan count");

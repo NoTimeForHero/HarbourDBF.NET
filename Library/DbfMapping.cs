@@ -10,6 +10,7 @@ namespace HarbourDBF.NET
     {
         private readonly List<DbfFieldMapping> fields = new List<DbfFieldMapping>();
         private readonly List<DbfIndexDefinition> indexes = new List<DbfIndexDefinition>();
+        private readonly List<string> indexBags = new List<string>();
         private bool frozen;
 
         protected DbfFieldOptions Field<TValue>(Expression<Func<T, TValue>> property, string name)
@@ -57,6 +58,16 @@ namespace HarbourDBF.NET
         }
 
         internal IReadOnlyList<DbfIndexDefinition> Indexes => indexes.AsReadOnly();
+
+        /// <summary>Объявляет сопровождаемый индексный файл без поискового свойства.</summary>
+        protected void IndexBag(string file)
+        {
+            EnsureMutable();
+            if (string.IsNullOrWhiteSpace(file)) throw new ArgumentException("An index file is required.", nameof(file));
+            indexBags.Add(file);
+        }
+
+        internal IReadOnlyList<string> IndexBags => indexBags.AsReadOnly();
 
         private void EnsureMutable()
         {

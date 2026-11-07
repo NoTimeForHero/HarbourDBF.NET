@@ -97,9 +97,9 @@ namespace HarbourDBF.NET
         {
             var loaded = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var bagNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var index in mapping.Indexes)
+            foreach (string file in mapping.Indexes.Select(index => index.File).Concat(mapping.IndexBags))
             {
-                string path = DbfPaths.Index(tablePath, index.File);
+                string path = DbfPaths.Index(tablePath, file);
                 if (!File.Exists(path)) throw new FileNotFoundException("Index file not found.", path);
                 string bagName = Path.GetFileNameWithoutExtension(path);
                 if (bagNames.TryGetValue(bagName, out var previous) && !string.Equals(previous, path, StringComparison.OrdinalIgnoreCase))
