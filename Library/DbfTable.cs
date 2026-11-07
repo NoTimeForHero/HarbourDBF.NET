@@ -145,14 +145,22 @@ namespace HarbourDBF.NET
                     match = order;
                 }
                 if (match == 0) throw new InvalidOperationException("Index tag not found: " + index.Tag);
+                DbfHarbour.Indexes.Select(match);
+                string keyType = JsonConvert.DeserializeObject<string>(DbfHarbour.Eval("HDBF_KEYTYPE()"));
+                int width = int.Parse(DbfHarbour.Eval("HDBF_KEYSIZE()"), CultureInfo.InvariantCulture);
                 if (index.IsSearchKey)
                 {
-                    DbfHarbour.Indexes.Select(match);
-                    string keyType = JsonConvert.DeserializeObject<string>(DbfHarbour.Eval("HDBF_KEYTYPE()"));
-                    int width = int.Parse(DbfHarbour.Eval("HDBF_KEYSIZE()"), CultureInfo.InvariantCulture);
                     if (keyType != "C" || width < 1 || width > 254) throw new InvalidOperationException("SearchKey requires a fixed-width character tag: " + index.Tag);
                     RunSearchBlock(index, null, true);
                     searchKeyWidths.Add(index, width);
+                }
+                else
+                {
+                    bool character = index.IsComposite || index.Format != null || index.Field.Property.PropertyType == typeof(string);
+                    int expectedWidth = index.IsComposite ? index.Parts.Sum(part => part.Format.Width.Value) :
+                        index.Format != null ? index.Format.Width.Value : character ? schemaFields[index.Field.Name].Length : 0;
+                    if (keyType != (character ? "C" : "N") || character && width != expectedWidth)
+                        throw new InvalidOperationException("Index tag key type or width does not match its mapping: " + index.Tag);
                 }
                 orders.Add(index, match);
             }
