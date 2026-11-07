@@ -15,7 +15,6 @@ namespace HarbourDBF.NET.Beta
         private readonly string alias;
         private readonly Dictionary<string, IndexInfo> indexesByField = new();
         private readonly DatabaseFieldsInfo _fieldsInfo;
-        private static readonly Dictionary<string, DatabaseFieldsInfo> globalFieldCache = new();
 
         /// <summary>
         /// Кодировка внутри открываемого DBF
@@ -44,12 +43,16 @@ namespace HarbourDBF.NET.Beta
             if (useGlobalCache) throw new NotImplementedException("Global cache is under construction!");
             DbfHarbour.Use(path, this.alias, exclusive, codepage);
 
-            // ReSharper disable once ConditionIsAlwaysTrueOrFalse
-            if (!useGlobalCache || !globalFieldCache.TryGetValue(path, out _fieldsInfo))
+            try
             {
                 FieldType[] fields = InternalUniversal.GetFields();
                 _fieldsInfo = new DatabaseFieldsInfo(fields);
-                globalFieldCache[path] = _fieldsInfo;
+            }
+            catch (Exception openError)
+            {
+                try { DbfHarbour.CloseArea(this.alias); }
+                catch (Exception closeError) { throw new AggregateException("Metadata initialization and workarea cleanup failed.", openError, closeError); }
+                throw;
             }
         }
 
