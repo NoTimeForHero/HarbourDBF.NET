@@ -480,6 +480,13 @@ namespace HarbourDBF.NET
 
         private void Check() { session.Check(); if (disposed) throw new ObjectDisposedException(nameof(DbfTable<T>)); }
 
+        private static int RecordCount()
+        {
+            int count = DbfHarbour.TotalRecords;
+            if (count < 0) throw new NotSupportedException("The DBF record count exceeds the supported Int32 range.");
+            return count;
+        }
+
         public DbfRecord<T> ReadAt(long recordNumber)
             => InCodepage(() => ReadAtCore(recordNumber));
 
@@ -488,7 +495,7 @@ namespace HarbourDBF.NET
             Check();
             if (recordNumber < 1 || recordNumber > int.MaxValue) throw new ArgumentOutOfRangeException(nameof(recordNumber));
             DbfHarbour.SelectArea(alias);
-            if (recordNumber > DbfHarbour.TotalRecords) return null;
+            if (recordNumber > RecordCount()) return null;
             DbfHarbour.GoTo(recordNumber);
             bool deleted = DbfHarbour.IsRecordDeleted;
             if (deleted && deletedRecords == DbfDeletedRecords.Exclude) return null;
@@ -565,7 +572,7 @@ namespace HarbourDBF.NET
             if (DbfRuntime.ContainsAsync(update))
                 throw new ArgumentException("The update callback must be synchronous.", nameof(update));
             DbfHarbour.SelectArea(alias);
-            if (reference.Number > DbfHarbour.TotalRecords) throw new InvalidOperationException("The referenced record no longer exists.");
+            if (reference.Number > RecordCount()) throw new InvalidOperationException("The referenced record no longer exists.");
             EnsureNoExistingLocks();
             if (!DbfHarbour.RecordLock(reference.Number)) throw new DbfLockException(reference.Number);
             Exception failure = null;
@@ -642,7 +649,7 @@ namespace HarbourDBF.NET
             DbfRecord<T> result = null;
             try
             {
-                if (number < 1 || number > DbfHarbour.TotalRecords) throw new InvalidOperationException("Append did not return a valid record number.");
+                if (number < 1 || number > RecordCount()) throw new InvalidOperationException("Append did not return a valid record number.");
                 if (shared && !JArray.Parse(DbfHarbour.Eval("DbRLockList()")).Any(x => (long)x == number))
                     throw new InvalidOperationException("Append did not hold the new record lock.");
                 InternalUniversal.SetValues(new DatabaseFieldsInfo(fullSchema), values, strictEncoding);
@@ -704,7 +711,7 @@ namespace HarbourDBF.NET
             if (reference == null) throw new ArgumentNullException(nameof(reference));
             if (!ReferenceEquals(reference.Owner, this)) throw new ArgumentException("The reference belongs to another table.", nameof(reference));
             DbfHarbour.SelectArea(alias);
-            if (reference.Number > DbfHarbour.TotalRecords) throw new InvalidOperationException("The referenced record no longer exists.");
+            if (reference.Number > RecordCount()) throw new InvalidOperationException("The referenced record no longer exists.");
             EnsureNoExistingLocks();
             if (!DbfHarbour.RecordLock(reference.Number)) throw new DbfLockException(reference.Number);
             Exception failure = null;
@@ -732,7 +739,7 @@ namespace HarbourDBF.NET
                 {
                     Check();
                     DbfHarbour.SelectArea(alias);
-                    if (number > DbfHarbour.TotalRecords) return false;
+                    if (number > RecordCount()) return false;
                     record = ReadAt(number);
                     return true;
                 });
