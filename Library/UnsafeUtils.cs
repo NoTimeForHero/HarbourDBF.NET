@@ -9,6 +9,15 @@ namespace HarbourDBF.NET
 {
     internal class UnsafeUtils
     {
+        // Native hb_itemPutC reads a C string, including its terminator.
+        public static byte[] GetNullTerminatedBytes(string value, Encoding encoding)
+        {
+            int length = encoding.GetByteCount(value);
+            var bytes = new byte[length + 1];
+            encoding.GetBytes(value, 0, value.Length, bytes, 0);
+            return bytes;
+        }
+
         [DllImport(Constants.DllName, EntryPoint = "_DBF_UNSAFE_FREE", CallingConvention = CallingConvention.Cdecl)]
         private static extern IntPtr UnsafeFree(IntPtr target);
 

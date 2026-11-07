@@ -161,7 +161,7 @@ namespace HarbourDBF.NET
             // TODO: Приведение сложных типов вроде DateTime к корректному Harbour формату
             var raw = values.Select(x => new[] { x.Key, x.Value, x.Value.GetType().FullName });
             var json = JsonConvert.SerializeObject(raw);
-            var converted = enc.GetBytes(json);
+            var converted = UnsafeUtils.GetNullTerminatedBytes(json, enc);
             _SetValues(converted);
             if (GetLastError(out var error)) throw new HarbourException(error);
         }

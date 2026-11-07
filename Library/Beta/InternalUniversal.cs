@@ -43,8 +43,8 @@ namespace HarbourDBF.NET.Beta
         public static TResult ProcedureCall<TResult>(string command, string data = "", Encoding enc = null) where TResult : class
         {
             enc ??= Constants.DefaultEncoding;
-            var rawCommand = enc.GetBytes(command);
-            var rawData = enc.GetBytes(data);
+            var rawCommand = UnsafeUtils.GetNullTerminatedBytes(command, enc);
+            var rawData = UnsafeUtils.GetNullTerminatedBytes(data, enc);
             var rawPtr = _ProcedureCall(rawCommand, rawData);
             if (DbfHarbour.GetLastError(out var intErr)) throw new HarbourException(intErr);
             var json = UnsafeUtils.GetString(rawPtr, enc);
