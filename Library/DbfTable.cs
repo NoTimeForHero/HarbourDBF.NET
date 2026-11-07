@@ -289,6 +289,37 @@ namespace HarbourDBF.NET
             }
         }
 
+        internal IEnumerable<DbfRecord<T>> ScanPrefix<TKey>(DbfIndexMapping<T, TKey> descriptor, object[] values, string partial)
+        {
+            string prefix = InCodepage(() =>
+            {
+                Check();
+                var pieces = new List<string>();
+                for (int i = 0; i < values.Length; i++)
+                {
+                    string part = descriptor.Parts[i].Format.Format(values[i], encoding);
+                    if (encoding.GetByteCount(part) != descriptor.Parts[i].Format.Width.Value) throw new InvalidOperationException("Formatted prefix part has an unexpected width.");
+                    pieces.Add(part);
+                }
+                if (partial != null) pieces.Add(descriptor.Parts[values.Length].Format.FormatPrefix(partial, encoding));
+                return string.Concat(pieces);
+            });
+            if (prefix.Length == 0)
+            {
+                foreach (var item in ScanIndex(descriptor)) yield return item;
+                yield break;
+            }
+            int previous = 0;
+            object prepared = prefix;
+            while (true)
+            {
+                DbfRecord<T> next = null;
+                bool found = InCodepage(() => NextEqual(descriptor, default(TKey), ref prepared, ref previous, out next));
+                if (!found) yield break;
+                yield return next;
+            }
+        }
+
         private bool NextEqual<TKey>(DbfIndexMapping<T, TKey> descriptor, TKey key, ref object prepared, ref int previous, out DbfRecord<T> next)
         {
             while (true)

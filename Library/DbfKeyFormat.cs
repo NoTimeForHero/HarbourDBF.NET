@@ -15,6 +15,8 @@ namespace HarbourDBF.NET
         private DbfKeyFormat(Type inputType, int? width, object[][] steps) { InputType = inputType; Width = width; this.steps = steps; }
         internal Type InputType { get; }
         internal int? Width { get; }
+        internal bool SupportsStartingWith => InputType == typeof(string) && steps.Length > 0 && (string)steps[0][0] == "PADR" &&
+            steps.Skip(1).All(step => (string)step[0] == "UPPER");
 
         public static DbfKeyFormat Str(int width, int decimals = 0)
         {
@@ -75,6 +77,17 @@ namespace HarbourDBF.NET
             JToken result = InternalUniversal.ProcedureCall<JToken>("FORMAT_KEY", json, strict);
             if (result == null || result.Type != JTokenType.String) throw new InvalidOperationException("Unexpected formatted key result.");
             return result.Value<string>();
+        }
+
+        internal string FormatPrefix(string value, Encoding encoding)
+        {
+            if (!SupportsStartingWith) throw new NotSupportedException("StartingWith requires PADR followed only by UPPER.");
+            if (value == null) throw new ArgumentNullException(nameof(value));
+            var strict = (Encoding)encoding.Clone();
+            strict.EncoderFallback = EncoderFallback.ExceptionFallback;
+            if (value.IndexOf('\0') >= 0 || strict.GetByteCount(value) > Width.Value)
+                throw new ArgumentException("The prefix contains a null character or exceeds the part width.", nameof(value));
+            return new DbfKeyFormat(typeof(string), null, steps.Skip(1).ToArray()).Format(value, strict);
         }
     }
 }

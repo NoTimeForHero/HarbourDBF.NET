@@ -87,11 +87,53 @@ namespace HarbourDBF.NET
         public DbfRecord<T> FindLast(TKey key) => table.Find(mapping, key, true);
         public IEnumerable<DbfRecord<T>> EqualTo(TKey key) => table.EqualTo(mapping, key);
         public IEnumerable<DbfRecord<T>> Scan() => table.ScanIndex(mapping);
+        public DbfIndexPrefix<T, TKey> Prefix<TPart>(Expression<Func<TKey, TPart>> selector, TPart value)
+            => new DbfIndexPrefix<T, TKey>(table, mapping, Array.Empty<object>()).Prefix(selector, value);
+
+        public IEnumerable<DbfRecord<T>> StartingWith(Expression<Func<TKey, string>> selector, string text)
+            => new DbfIndexPrefix<T, TKey>(table, mapping, Array.Empty<object>()).StartingWith(selector, text);
         public IEnumerable<DbfRecord<T>> Range(TKey from, TKey to, DbfRangeBounds bounds)
         {
             if (mapping.IsSearchKey) throw new NotSupportedException("Range is not supported for SearchKey blocks.");
             if ((bounds & ~DbfRangeBounds.IncludeBoth) != 0) throw new ArgumentOutOfRangeException(nameof(bounds));
             return table.Range(mapping, from, to, bounds);
+        }
+    }
+
+    public sealed class DbfIndexPrefix<T, TKey> where T : class, new()
+    {
+        private readonly DbfTable<T> table;
+        private readonly DbfIndexMapping<T, TKey> mapping;
+        private readonly object[] values;
+        internal DbfIndexPrefix(DbfTable<T> table, DbfIndexMapping<T, TKey> mapping, object[] values)
+        { this.table = table; this.mapping = mapping; this.values = values; }
+
+        public DbfIndexPrefix<T, TKey> Prefix<TPart>(Expression<Func<TKey, TPart>> selector, TPart value)
+        {
+            var part = NextPart(selector);
+            if ((object)value == null || part.Format.InputType != typeof(TPart)) throw new ArgumentException("The prefix value has the wrong type.", nameof(value));
+            return new DbfIndexPrefix<T, TKey>(table, mapping, values.Concat(new object[] { value }).ToArray());
+        }
+
+        public IEnumerable<DbfRecord<T>> StartingWith(Expression<Func<TKey, string>> selector, string text)
+        {
+            var part = NextPart(selector);
+            if (!part.Format.SupportsStartingWith) throw new NotSupportedException("This key part does not support StartingWith.");
+            if (text == null) throw new ArgumentNullException(nameof(text));
+            return table.ScanPrefix(mapping, values, text);
+        }
+
+        public IEnumerable<DbfRecord<T>> Scan() => table.ScanPrefix(mapping, values, null);
+
+        private DbfCompositePart NextPart<TPart>(Expression<Func<TKey, TPart>> selector)
+        {
+            if (!mapping.IsComposite) throw new NotSupportedException("Prefix operations require a declarative composite index.");
+            if (selector == null) throw new ArgumentNullException(nameof(selector));
+            if (values.Length >= mapping.Parts.Count) throw new InvalidOperationException("All key parts are already specified.");
+            var member = selector.Body as MemberExpression;
+            if (!(member?.Member is PropertyInfo property) || member.Expression != selector.Parameters[0] || property != mapping.Parts[values.Length].KeyProperty)
+                throw new ArgumentException("Select the next leading key part.", nameof(selector));
+            return mapping.Parts[values.Length];
         }
     }
 }

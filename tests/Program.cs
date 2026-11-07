@@ -575,8 +575,22 @@ internal static class Program
             Equal(2, complex.FindLast(key).Value.Id, "composite last key");
             Require(complex.FindFirst(new ComplexKey { View = 3, Name = "алиса" }) == null, "missing composite key");
             Equal(3, complex.Range(key, new ComplexKey { View = 1, Name = "борис" }, DbfRangeBounds.IncludeBoth).Count(), "composite full-key range");
+            var viewOne = complex.Prefix(k => k.View, 1);
+            Equal(3, viewOne.Scan().Count(), "leading part prefix");
+            Equal(2, viewOne.StartingWith(k => k.Name, "али").Count(), "text prefix");
+            Equal(3, viewOne.StartingWith(k => k.Name, "").Count(), "empty text prefix");
+            Equal(2, viewOne.Prefix(k => k.Name, "алиса").Scan().Count(), "full composite prefix");
+            bool nonLeading = false;
+            try { complex.Prefix(k => k.Name, "алиса"); } catch (ArgumentException) { nonLeading = true; }
+            Require(nonLeading, "non-leading prefix accepted");
+            bool widePrefix = false;
+            try { viewOne.StartingWith(k => k.Name, new string('A', 31)).ToList(); } catch (ArgumentException) { widePrefix = true; }
+            Require(widePrefix, "oversized text prefix accepted");
             Require(mapping.ByViewName.HarbourExpression == "STR(VIEW,4,0)+UPPER(PADR(NAME,30))", "composite expression");
             var arbitrary = table.Index(mapping.ByCategory);
+            bool unsupportedPrefix = false;
+            try { arbitrary.Prefix(k => k.View, 1); } catch (NotSupportedException) { unsupportedPrefix = true; }
+            Require(unsupportedPrefix, "SearchKey prefix accepted");
             bool unsupportedRange = false;
             try { arbitrary.Range(key, key, DbfRangeBounds.IncludeBoth); } catch (NotSupportedException) { unsupportedRange = true; }
             Require(unsupportedRange, "SearchKey range accepted");
