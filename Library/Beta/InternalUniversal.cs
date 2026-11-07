@@ -26,7 +26,15 @@ namespace HarbourDBF.NET.Beta
                 if (!fields.OrderByName.TryGetValue(key, out var order))
                     throw new ArgumentException($"Unknown DBF field: {pair.Key}");
                 var type = "?";
-                if (value is DateTime dt)
+                if (value == null)
+                {
+                    var fieldType = fields.FieldsByName[key].Type;
+                    if (fieldType == "D") type = "D";
+                    else if (fieldType == "@" || fieldType == "T") type = "T";
+                    else throw new ArgumentException($"Null is supported only for date or timestamp fields: {pair.Key}", nameof(inputValues));
+                    value = "";
+                }
+                else if (value is DateTime dt)
                 {
                     var fieldType = fields.FieldsByName[key].Type;
                     if (fieldType == "D")
