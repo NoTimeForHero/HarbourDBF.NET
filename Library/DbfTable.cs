@@ -146,6 +146,7 @@ namespace HarbourDBF.NET
 
         public DbfIndex<T, TKey> Index<TKey>(DbfIndexMapping<T, TKey> descriptor)
         {
+            if (!DbfRuntime.IsExecutorThread) return DbfRuntime.Invoke(() => Index(descriptor));
             Check();
             if (descriptor == null) throw new ArgumentNullException(nameof(descriptor));
             if (!ReferenceEquals(descriptor.Owner, mapping) || !orders.ContainsKey(descriptor)) throw new ArgumentException("Index belongs to another mapping.", nameof(descriptor));
@@ -154,6 +155,7 @@ namespace HarbourDBF.NET
 
         internal DbfRecord<T> Find<TKey>(DbfIndexMapping<T, TKey> descriptor, TKey key, bool last)
         {
+            if (!DbfRuntime.IsExecutorThread) return DbfRuntime.Invoke(() => Find(descriptor, key, last));
             Check();
             DbfHarbour.SelectArea(alias);
             DbfHarbour.Indexes.Select(orders[descriptor]);
@@ -187,8 +189,19 @@ namespace HarbourDBF.NET
             int previous = 0;
             while (true)
             {
-                Check();
                 DbfRecord<T> next = null;
+                bool found = DbfRuntime.Invoke(() => NextEqual(descriptor, key, ref previous, out next));
+                if (!found) yield break;
+                yield return next;
+            }
+        }
+
+        private bool NextEqual<TKey>(DbfIndexMapping<T, TKey> descriptor, TKey key, ref int previous, out DbfRecord<T> next)
+        {
+            while (true)
+            {
+                Check();
+                next = null;
                 DbfHarbour.SelectArea(alias);
                 DbfHarbour.Indexes.Select(orders[descriptor]);
                 string oldDeleted = DbfHarbour.Eval("Set(11)");
@@ -197,24 +210,24 @@ namespace HarbourDBF.NET
                     // OrdKeyNo/OrdKeyGoto use physical index positions. Keep deleted
                     // keys in that numbering and apply the visibility policy after positioning.
                     DbfHarbour.Eval("Set(11,.F.)");
-                    if (!SeekKey(descriptor, key, false)) yield break;
+                    if (!SeekKey(descriptor, key, false)) return false;
                     long first = long.Parse(DbfHarbour.Eval("OrdKeyNo()"), CultureInfo.InvariantCulture);
-                    if (!SeekKey(descriptor, key, true)) yield break;
+                    if (!SeekKey(descriptor, key, true)) return false;
                     long last = long.Parse(DbfHarbour.Eval("OrdKeyNo()"), CultureInfo.InvariantCulture);
                     long position = first;
                     if (previous != 0)
                     {
                         DbfHarbour.GoTo(previous);
                         position = long.Parse(DbfHarbour.Eval("OrdKeyNo()"), CultureInfo.InvariantCulture);
-                        if (position < first || position > last) yield break;
+                        if (position < first || position > last) return false;
                         position++;
                     }
-                    if (position > last || DbfHarbour.Eval("OrdKeyGoto(" + position.ToString(CultureInfo.InvariantCulture) + ")") != "true") yield break;
+                    if (position > last || DbfHarbour.Eval("OrdKeyGoto(" + position.ToString(CultureInfo.InvariantCulture) + ")") != "true") return false;
                     previous = DbfHarbour.ActiveRecord;
                     next = ReadAt(previous);
                 }
                 finally { DbfHarbour.Eval(oldDeleted == "true" ? "Set(11,.T.)" : "Set(11,.F.)"); }
-                if (next != null) yield return next;
+                if (next != null) return true;
             }
         }
 
@@ -222,6 +235,7 @@ namespace HarbourDBF.NET
 
         public DbfRecord<T> ReadAt(long recordNumber)
         {
+            if (!DbfRuntime.IsExecutorThread) return DbfRuntime.Invoke(() => ReadAt(recordNumber));
             Check();
             if (recordNumber < 1 || recordNumber > int.MaxValue) throw new ArgumentOutOfRangeException(nameof(recordNumber));
             DbfHarbour.SelectArea(alias);
@@ -268,6 +282,7 @@ namespace HarbourDBF.NET
 
         public DbfRecord<T> Read(DbfRecordRef<T> reference)
         {
+            if (!DbfRuntime.IsExecutorThread) return DbfRuntime.Invoke(() => Read(reference));
             Check();
             if (reference == null) throw new ArgumentNullException(nameof(reference));
             if (!ReferenceEquals(reference.Owner, this)) throw new ArgumentException("The reference belongs to another table.", nameof(reference));
@@ -280,11 +295,14 @@ namespace HarbourDBF.NET
 
         public DbfRecord<T> Update(DbfRecordRef<T> reference, Action<T> update)
         {
+            if (!DbfRuntime.IsExecutorThread) return DbfRuntime.Invoke(() => Update(reference, update));
             Check();
             if (!writable) throw new InvalidOperationException("The table is read-only.");
             if (reference == null) throw new ArgumentNullException(nameof(reference));
             if (!ReferenceEquals(reference.Owner, this)) throw new ArgumentException("The reference belongs to another table.", nameof(reference));
             if (update == null) throw new ArgumentNullException(nameof(update));
+            if (DbfRuntime.ContainsAsync(update))
+                throw new ArgumentException("The update callback must be synchronous.", nameof(update));
             DbfHarbour.SelectArea(alias);
             if (reference.Number > DbfHarbour.TotalRecords) throw new InvalidOperationException("The referenced record no longer exists.");
             EnsureNoExistingLocks();
@@ -332,6 +350,7 @@ namespace HarbourDBF.NET
 
         public DbfRecord<T> Insert(T value, bool strict = false)
         {
+            if (!DbfRuntime.IsExecutorThread) return DbfRuntime.Invoke(() => Insert(value, strict));
             Check();
             if (!writable) throw new InvalidOperationException("The table is read-only.");
             if (value == null) throw new ArgumentNullException(nameof(value));
@@ -410,6 +429,7 @@ namespace HarbourDBF.NET
 
         private void SetDeleted(DbfRecordRef<T> reference, bool deleted)
         {
+            if (!DbfRuntime.IsExecutorThread) { DbfRuntime.Invoke(() => SetDeleted(reference, deleted)); return; }
             Check();
             if (!writable) throw new InvalidOperationException("The table is read-only.");
             if (reference == null) throw new ArgumentNullException(nameof(reference));
@@ -436,19 +456,25 @@ namespace HarbourDBF.NET
 
         public IEnumerable<DbfRecord<T>> Scan()
         {
-            Check();
             for (long number = 1; ; number++)
             {
-                Check();
-                DbfHarbour.SelectArea(alias);
-                if (number > DbfHarbour.TotalRecords) yield break;
-                var record = ReadAt(number);
+                DbfRecord<T> record = null;
+                bool exists = DbfRuntime.Invoke(() =>
+                {
+                    Check();
+                    DbfHarbour.SelectArea(alias);
+                    if (number > DbfHarbour.TotalRecords) return false;
+                    record = ReadAt(number);
+                    return true;
+                });
+                if (!exists) yield break;
                 if (record != null) yield return record;
             }
         }
 
         public void Dispose()
         {
+            if (!DbfRuntime.IsExecutorThread) { DbfRuntime.Invoke(Dispose); return; }
             if (disposed) return;
             session.Check();
             disposed = true;

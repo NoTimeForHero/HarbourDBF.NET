@@ -16,6 +16,7 @@ namespace HarbourDBF.NET
         private readonly TaskCompletionSource<bool> started = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly TaskCompletionSource<bool> stopped = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         private bool disposed;
+        internal bool IsExecutorThread => Thread.CurrentThread == thread;
 
         internal DbfExecutor(int capacity, Action initialize, Action shutdown)
         {

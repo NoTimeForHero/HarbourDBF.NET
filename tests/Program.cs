@@ -17,7 +17,8 @@ internal static class Program
     private static int Main(string[] args)
     {
         if (args.Length == 2 && args[0] == "--hold-lock") return HoldLock(args[1]);
-        try { PathResolution(); MappingDeclarations(); ExactIntegerConversion(); ExecutorQueue(); }
+        if (args.Length == 1 && args[0] == "--runtime-lifecycle") return RuntimeLifecycle();
+        try { PathResolution(); MappingDeclarations(); ExactIntegerConversion(); ExecutorQueue(); RuntimeLifecycleProcess(); }
         catch (Exception error) { Console.Error.WriteLine("FAIL: " + error); return 1; }
         if (IntPtr.Size != 4) { Console.Error.WriteLine("The current native DLL requires an x86 process."); return 1; }
         if (!File.Exists(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "hbdbf.dll"))) { Console.Error.WriteLine("Build HarbourLibrary/hbdbf.dll, then rebuild LightTests."); return 1; }
@@ -195,20 +196,25 @@ internal static class Program
             var rows = table.Scan().Select(x => { Require(table.Read(first.Reference).Value.Id == 1, "nested read"); return x; }).ToList();
             Equal(3, rows.Count, "typed scan count");
             Require(!ReferenceEquals(rows[0].Value, first.Value), "typed values must be independent");
-            bool wrongThread = false;
-            var thread = new System.Threading.Thread(() => { try { table.ReadAt(1); } catch (InvalidOperationException) { wrongThread = true; } });
-            thread.Start(); thread.Join();
-            Require(wrongThread, "wrong-thread access was accepted");
+            using (var otherTable = session.OpenTable("basic.dbf", mapping, "UA866", Cp866))
+            {
+                var threads = Enumerable.Range(0, 4).Select(worker => System.Threading.Tasks.Task.Run(() =>
+                {
+                    var selected = worker % 2 == 0 ? table : otherTable;
+                    for (int i = 0; i < 25; i++)
+                        Require(selected.Index(mapping.ById).FindFirst(1).Value.Name == "ALICE" && selected.ReadAt(2).Value.Id == 2, "concurrent indexed read");
+                })).ToArray();
+                System.Threading.Tasks.Task.WaitAll(threads);
+            }
         }
-        bool ownershipTransferRejected = false;
+        bool otherThreadOpened = false;
         var otherThread = new System.Threading.Thread(() =>
         {
-            try { using (DbfSession.Open(dir)) { } }
-            catch (InvalidOperationException) { ownershipTransferRejected = true; }
+            using (DbfSession.Open(dir)) { otherThreadOpened = true; }
         });
         otherThread.Start(); otherThread.Join();
-        Require(ownershipTransferRejected, "VM ownership transferred after sessions closed");
-        Console.WriteLine("PASS: typed read, scan and thread ownership");
+        Require(otherThreadOpened, "session could not be opened from another thread");
+        Console.WriteLine("PASS: typed read, scan and concurrent callers");
     }
 
     private static void TypedDeleted(string dir)
@@ -372,6 +378,13 @@ internal static class Program
             rejected = false;
             try { table.Update(reference, row => table.ReadAt(1)); } catch (InvalidOperationException) { rejected = true; }
             Require(rejected && table.Read(reference).Value.Name == "ИЗМЕНЕНО", "callback reentry accepted");
+            rejected = false;
+            try { table.Update(reference, row => DbfHarbour.SelectArea("UNRELATED")); } catch (InvalidOperationException) { rejected = true; }
+            Require(rejected && table.Read(reference).Value.Name == "ИЗМЕНЕНО", "low-level callback reentry accepted");
+            rejected = false;
+            Action<TypedModel> asyncUpdate = async row => { await System.Threading.Tasks.Task.Yield(); row.Name = "LATE"; };
+            try { table.Update(reference, asyncUpdate); } catch (ArgumentException) { rejected = true; }
+            Require(rejected && table.Read(reference).Value.Name == "ИЗМЕНЕНО", "asynchronous update callback accepted");
             table.MarkDeleted(reference);
             rejected = false;
             try { table.Update(reference, row => row.Name = "NO"); } catch (InvalidOperationException) { rejected = true; }
@@ -624,6 +637,77 @@ internal static class Program
         try { failingShutdown.Dispose(); } catch (ApplicationException) { shutdownFailed = true; }
         Require(initFailed && shutdownFailed, "executor lifecycle failure was lost");
         Console.WriteLine("PASS: bounded executor, cancellation and shutdown");
+    }
+
+    [System.Runtime.InteropServices.DllImport("hbdbf.dll", EntryPoint = "_DBF_VM_INIT_THREAD", CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
+    private static extern uint VmInitThread();
+    [System.Runtime.InteropServices.DllImport("hbdbf.dll", EntryPoint = "_DBF_VM_QUIT_THREAD", CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
+    private static extern uint VmQuitThread();
+    [System.Runtime.InteropServices.DllImport("kernel32.dll")]
+    private static extern uint GetCurrentThreadId();
+
+    private static int RuntimeLifecycle()
+    {
+        try
+        {
+            Require(VmInitThread() == 0, "VM initialized in DLL loader");
+            DbfRuntime.Configure(1);
+            bool invalidAsync = false;
+            try { _ = DbfRuntime.ExecuteAsync(async () => { await System.Threading.Tasks.Task.Yield(); }); }
+            catch (ArgumentException) { invalidAsync = true; }
+            Require(invalidAsync, "asynchronous executor delegate accepted");
+            using (var started = new System.Threading.ManualResetEventSlim())
+            using (var release = new System.Threading.ManualResetEventSlim())
+            {
+                var first = DbfRuntime.ExecuteAsync(() => { started.Set(); release.Wait(); return GetCurrentThreadId(); });
+                Require(started.Wait(10000), "runtime operation did not start");
+                var second = DbfRuntime.ExecuteAsync(() => DbfHarbour.Eval("1"));
+                using (var cancel = new System.Threading.CancellationTokenSource())
+                {
+                    var waiter = DbfRuntime.ExecuteAsync(() => 3, cancel.Token);
+                    Require(!waiter.IsCompleted, "runtime queue was not bounded");
+                    cancel.Cancel();
+                    bool cancelled = false;
+                    try { waiter.GetAwaiter().GetResult(); } catch (OperationCanceledException) { cancelled = true; }
+                    Require(cancelled, "runtime queue wait did not cancel");
+                }
+                release.Set();
+                uint worker = first.GetAwaiter().GetResult();
+                Equal("1", second.GetAwaiter().GetResult(), "native operation on executor");
+                Equal(worker, VmInitThread(), "VM initialized on executor thread");
+                bool rejected = DbfRuntime.ExecuteAsync(() =>
+                {
+                    try { DbfRuntime.ExecuteAsync(() => 1).GetAwaiter().GetResult(); }
+                    catch (InvalidOperationException) { return true; }
+                    return false;
+                }).GetAwaiter().GetResult();
+                Require(rejected, "reentrant runtime submission accepted");
+                DbfRuntime.Shutdown();
+                Equal(worker, VmQuitThread(), "VM shut down on executor thread");
+                rejected = false;
+                try { DbfHarbour.Eval("1"); } catch (ObjectDisposedException) { rejected = true; }
+                Require(rejected, "runtime restarted after shutdown");
+            }
+            return 0;
+        }
+        catch (Exception error) { Console.Error.WriteLine(error); return 1; }
+    }
+
+    private static void RuntimeLifecycleProcess()
+    {
+        using (var process = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+        {
+            FileName = System.Reflection.Assembly.GetExecutingAssembly().Location,
+            Arguments = "--runtime-lifecycle",
+            UseShellExecute = false,
+            CreateNoWindow = true
+        }))
+        {
+            Require(process != null, "runtime lifecycle helper did not start");
+            if (!process.WaitForExit(15000)) { process.Kill(); process.WaitForExit(); throw new Exception("Runtime lifecycle helper timed out"); }
+            Require(process.ExitCode == 0, "runtime lifecycle helper failed");
+        }
+        Console.WriteLine("PASS: VM lifecycle and bounded runtime on executor thread");
     }
 
     private static void ReadBasic(string dir)

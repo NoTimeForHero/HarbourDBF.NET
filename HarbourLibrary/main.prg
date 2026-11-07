@@ -271,20 +271,28 @@ BOOL WINAPI DllMain( HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved )  
 {
   HB_SYMBOL_UNUSED( hinstDLL );
   HB_SYMBOL_UNUSED( lpvReserved );
-  switch( fdwReason )
-  {
-    case DLL_PROCESS_ATTACH:
-      //printf("Attached to main!\n");
-      //MessageBox( 0, "We're in DLLMain", "1", 0 );
-      hb_vmInit( FALSE );
-      hb_itemRelease( hb_itemDoC( "INIT_LIBRARY", 0) );
-      break;
-    case DLL_PROCESS_DETACH:
-      hb_vmQuit();
-      break;
-  }
+  HB_SYMBOL_UNUSED( fdwReason );
   return TRUE;
 }
+
+/* The managed executor calls both functions on the same dedicated thread. */
+static DWORD s_vm_init_thread = 0;
+static DWORD s_vm_quit_thread = 0;
+HB_EXPORT void _export DBF_VM_INIT(void)
+{
+  s_vm_init_thread = GetCurrentThreadId();
+  hb_vmInit( FALSE );
+  hb_itemRelease( hb_itemDoC( "INIT_LIBRARY", 0 ) );
+}
+
+HB_EXPORT void _export DBF_VM_QUIT(void)
+{
+  s_vm_quit_thread = GetCurrentThreadId();
+  hb_vmQuit();
+}
+
+HB_EXPORT DWORD _export DBF_VM_INIT_THREAD(void) { return s_vm_init_thread; }
+HB_EXPORT DWORD _export DBF_VM_QUIT_THREAD(void) { return s_vm_quit_thread; }
 
 /* Unlike OrdKeyVal(), the tag's declared key type exists on an empty index. */
 HB_FUNC( HDBF_KEYTYPE )

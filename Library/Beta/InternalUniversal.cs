@@ -63,6 +63,7 @@ namespace HarbourDBF.NET.Beta
         private static extern IntPtr _ProcedureCall(byte[] command, byte[] data);
         public static TResult ProcedureCall<TResult>(string command, string data = "", Encoding enc = null) where TResult : class
         {
+            if (!DbfRuntime.IsExecutorThread) return DbfRuntime.Invoke(() => ProcedureCall<TResult>(command, data, enc));
             enc ??= Constants.DefaultEncoding;
             var rawCommand = UnsafeUtils.GetNullTerminatedBytes(command, enc);
             var rawData = UnsafeUtils.GetNullTerminatedBytes(data, enc);

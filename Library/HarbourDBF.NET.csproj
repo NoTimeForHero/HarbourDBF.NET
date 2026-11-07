@@ -61,6 +61,7 @@
     <Compile Include="DbfSession.cs" />
     <Compile Include="DbfTable.cs" />
     <Compile Include="DbfPaths.cs" />
+    <Compile Include="DbfRuntime.cs" />
     <Compile Include="Data\HarbourException.cs" />
     <Compile Include="RuntimeHacks.cs" />
     <Compile Include="UnsafeUtils.cs" />

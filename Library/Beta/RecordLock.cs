@@ -13,13 +13,30 @@ namespace HarbourDBF.NET.Beta
 
         public RecordLock(int recNo)
         {
-            alias = DbfHarbour.Alias;
-            this.recNo = recNo == -1 ? DbfHarbour.ActiveRecord : recNo;
-            var locked = DbfHarbour.RecordLock(this.recNo);
+            var acquired = DbfRuntime.Invoke(() => Acquire(recNo));
+            alias = acquired.Item1;
+            this.recNo = acquired.Item2;
+        }
+
+        internal RecordLock(string alias, int recNo) { this.alias = alias; this.recNo = recNo; }
+
+        internal static Tuple<string, int> Acquire(int recNo)
+        {
+            string alias = DbfHarbour.Alias;
+            int number = recNo == -1 ? DbfHarbour.ActiveRecord : recNo;
+            var locked = DbfHarbour.RecordLock(number);
             if (!locked) throw new InvalidOperationException($"Не удалось заблокировать запись!");
+            return Tuple.Create(alias, number);
         }
 
         public void Dispose()
+        {
+            var owner = alias;
+            var number = recNo;
+            DbfRuntime.Invoke(() => Release(owner, number));
+        }
+
+        private static void Release(string alias, int recNo)
         {
             var previousAlias = DbfHarbour.Alias;
             bool restore = !string.IsNullOrEmpty(previousAlias) &&

@@ -41,23 +41,22 @@ namespace HarbourDBF.NET.Beta
         {
             this.alias = alias ?? "A" + Guid.NewGuid().ToString("N");
             if (useGlobalCache) throw new NotImplementedException("Global cache is under construction!");
-            DbfHarbour.Use(path, this.alias, exclusive, codepage);
-
-            try
+            _fieldsInfo = DbfRuntime.Invoke(() =>
             {
-                FieldType[] fields = InternalUniversal.GetFields();
-                _fieldsInfo = new DatabaseFieldsInfo(fields);
-            }
-            catch (Exception openError)
-            {
-                try { DbfHarbour.CloseArea(this.alias); }
-                catch (Exception closeError) { throw new AggregateException("Metadata initialization and workarea cleanup failed.", openError, closeError); }
-                throw;
-            }
+                DbfHarbour.Use(path, this.alias, exclusive, codepage);
+                try { return new DatabaseFieldsInfo(InternalUniversal.GetFields()); }
+                catch (Exception openError)
+                {
+                    try { DbfHarbour.CloseArea(this.alias); }
+                    catch (Exception closeError) { throw new AggregateException("Metadata initialization and workarea cleanup failed.", openError, closeError); }
+                    throw;
+                }
+            });
         }
 
         public IEnumerable<object> GetValues(int recNo, IEnumerable<string> keys)
         {
+            if (!DbfRuntime.IsExecutorThread) return DbfRuntime.Invoke(() => GetValues(recNo, keys));
             DbfHarbour.SelectArea(alias);
             PositionForAccess(recNo);
             var values = DbfHarbour.GetValues(keys, DatabaseEncoding).ToArray();
@@ -87,6 +86,7 @@ namespace HarbourDBF.NET.Beta
 
         public void SetValues(int recNo, Dictionary<string, object> values)
         {
+            if (!DbfRuntime.IsExecutorThread) { DbfRuntime.Invoke(() => SetValues(recNo, values)); return; }
             DbfHarbour.SelectArea(alias);
             PositionForAccess(recNo);
             InternalUniversal.SetValues(_fieldsInfo, values, DatabaseEncoding);
@@ -102,6 +102,7 @@ namespace HarbourDBF.NET.Beta
 
         public void RegisterIndex(string field, string path)
         {
+            if (!DbfRuntime.IsExecutorThread) { DbfRuntime.Invoke(() => RegisterIndex(field, path)); return; }
             if (indexesByField.ContainsKey(field))
                 throw new InvalidOperationException($"Index for field \"{field}\" is already registered!");
             var order = indexesByField.Count + 1;
@@ -113,12 +114,13 @@ namespace HarbourDBF.NET.Beta
 
         public RecordLock MakeLock(int recNo)
         {
-            DbfHarbour.SelectArea(alias);
-            return new(recNo);
+            var acquired = DbfRuntime.Invoke(() => { DbfHarbour.SelectArea(alias); return RecordLock.Acquire(recNo); });
+            return new RecordLock(acquired.Item1, acquired.Item2);
         }
 
         public int Search(string field, int value, bool soft = false, bool last = false)
         {
+            if (!DbfRuntime.IsExecutorThread) return DbfRuntime.Invoke(() => Search(field, value, soft, last));
             if (!indexesByField.TryGetValue(field, out var indexInfo))
                 throw new InvalidOperationException($"No index for field: {field}!");
             DbfHarbour.SelectArea(alias);
@@ -131,6 +133,7 @@ namespace HarbourDBF.NET.Beta
 
         public void Dispose()
         {
+            if (!DbfRuntime.IsExecutorThread) { DbfRuntime.Invoke(Dispose); return; }
             DbfHarbour.CloseArea(alias);
         }
 
