@@ -10,6 +10,11 @@ using Newtonsoft.Json.Linq;
 
 namespace HarbourDBF.NET
 {
+    public sealed class DbfLockException : InvalidOperationException
+    {
+        internal DbfLockException(int recordNumber) : base("Could not lock DBF record " + recordNumber + ".") { }
+    }
+
     public sealed class DbfRecordRef<T> where T : class, new()
     {
         internal DbfRecordRef(DbfTable<T> owner, int number) { Owner = owner; Number = number; }
@@ -35,15 +40,17 @@ namespace HarbourDBF.NET
         private readonly Encoding encoding;
         private readonly DbfMapping<T> mapping;
         private readonly DbfDeletedRecords deletedRecords;
+        private readonly bool writable;
         private readonly Dictionary<DbfIndexDefinition, int> orders = new Dictionary<DbfIndexDefinition, int>();
         private readonly Dictionary<string, FieldType> schemaFields = new Dictionary<string, FieldType>(StringComparer.OrdinalIgnoreCase);
         private bool disposed;
 
-        internal DbfTable(DbfSession session, string path, DbfMapping<T> mapping, string codepage, Encoding encoding, DbfDeletedRecords deletedRecords)
+        internal DbfTable(DbfSession session, string path, DbfMapping<T> mapping, string codepage, Encoding encoding, DbfDeletedRecords deletedRecords, DbfOpenMode mode)
         {
             this.session = session;
             this.mapping = mapping;
             this.deletedRecords = deletedRecords;
+            writable = mode == DbfOpenMode.SharedReadWrite || mode == DbfOpenMode.ExclusiveReadWrite;
             this.encoding = (Encoding)(encoding ?? Constants.DefaultEncoding).Clone();
             this.encoding.DecoderFallback = DecoderFallback.ExceptionFallback;
             fields = mapping.Freeze();
@@ -53,7 +60,9 @@ namespace HarbourDBF.NET
             try
             {
                 DbfHarbour.Eval("Set(45,.F.)");
-                DbfHarbour.UseReadOnly(path, alias, false, codepage);
+                bool exclusive = mode == DbfOpenMode.ExclusiveReadOnly || mode == DbfOpenMode.ExclusiveReadWrite;
+                if (writable) DbfHarbour.Use(path, alias, exclusive, codepage);
+                else DbfHarbour.UseReadOnly(path, alias, exclusive, codepage);
                 opened = true;
                 ValidateSchema(InternalUniversal.GetFields());
                 LoadIndexes(path);
@@ -219,6 +228,35 @@ namespace HarbourDBF.NET
             if (reference == null) throw new ArgumentNullException(nameof(reference));
             if (!ReferenceEquals(reference.Owner, this)) throw new ArgumentException("The reference belongs to another table.", nameof(reference));
             return ReadAt(reference.Number);
+        }
+
+        public void MarkDeleted(DbfRecordRef<T> reference) => SetDeleted(reference, true);
+
+        public void Recall(DbfRecordRef<T> reference) => SetDeleted(reference, false);
+
+        private void SetDeleted(DbfRecordRef<T> reference, bool deleted)
+        {
+            Check();
+            if (!writable) throw new InvalidOperationException("The table is read-only.");
+            if (reference == null) throw new ArgumentNullException(nameof(reference));
+            if (!ReferenceEquals(reference.Owner, this)) throw new ArgumentException("The reference belongs to another table.", nameof(reference));
+            DbfHarbour.SelectArea(alias);
+            if (reference.Number > DbfHarbour.TotalRecords) throw new InvalidOperationException("The referenced record no longer exists.");
+            if (!DbfHarbour.RecordLock(reference.Number)) throw new DbfLockException(reference.Number);
+            Exception failure = null;
+            try
+            {
+                DbfHarbour.GoTo(reference.Number);
+                if (DbfHarbour.IsRecordDeleted != deleted)
+                {
+                    if (deleted) DbfHarbour.Delete(); else DbfHarbour.Recall();
+                    DbfHarbour.Commit();
+                }
+            }
+            catch (Exception error) { failure = error; }
+            try { DbfHarbour.SelectArea(alias); DbfHarbour.RecordLock(reference.Number, true); }
+            catch (Exception error) { failure = failure == null ? error : new AggregateException(failure, error); }
+            if (failure != null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
         }
 
         public IEnumerable<DbfRecord<T>> Scan()

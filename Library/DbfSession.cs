@@ -7,6 +7,7 @@ using System.Threading;
 namespace HarbourDBF.NET
 {
     public enum DbfDeletedRecords { Exclude, Include }
+    public enum DbfOpenMode { SharedReadOnly, SharedReadWrite, ExclusiveReadOnly, ExclusiveReadWrite }
 
     /// <summary>Владеет таблицами и допускает работу только на создавшем сеанс потоке.</summary>
     public sealed class DbfSession : IDisposable
@@ -40,15 +41,16 @@ namespace HarbourDBF.NET
         }
 
         public DbfTable<T> OpenTable<T>(string path, DbfMapping<T> mapping, string codepage = "", Encoding encoding = null,
-            DbfDeletedRecords deletedRecords = DbfDeletedRecords.Exclude) where T : class, new()
+            DbfDeletedRecords deletedRecords = DbfDeletedRecords.Exclude, DbfOpenMode mode = DbfOpenMode.SharedReadOnly) where T : class, new()
         {
             Check();
             if (mapping == null) throw new ArgumentNullException(nameof(mapping));
             if (deletedRecords != DbfDeletedRecords.Exclude && deletedRecords != DbfDeletedRecords.Include)
                 throw new ArgumentOutOfRangeException(nameof(deletedRecords));
+            if (!Enum.IsDefined(typeof(DbfOpenMode), mode)) throw new ArgumentOutOfRangeException(nameof(mode));
             string resolved = DbfPaths.Table(Root, path);
             if (!File.Exists(resolved)) throw new FileNotFoundException("DBF file not found.", resolved);
-            var table = new DbfTable<T>(this, resolved, mapping, codepage, encoding, deletedRecords);
+            var table = new DbfTable<T>(this, resolved, mapping, codepage, encoding, deletedRecords, mode);
             tables.Add(table);
             return table;
         }

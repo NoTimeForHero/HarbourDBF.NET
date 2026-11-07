@@ -40,6 +40,7 @@ internal static class Program
                 ReadBasic(working);
                 TypedRead(working);
                 TypedDeleted(working);
+                TypedDeletionWrite(working);
                 WriteBasic(working);
                 SpecialTypes(working);
             }
@@ -196,6 +197,47 @@ internal static class Program
             Require(rejected, "foreign record reference accepted");
         }
         Console.WriteLine("PASS: deleted records and reference ownership");
+    }
+
+    private static void TypedDeletionWrite(string dir)
+    {
+        string copy = Path.Combine(dir, "typed-delete-write");
+        Directory.CreateDirectory(copy);
+        foreach (string file in new[] { "basic.dbf", "basic.fpt", "basic_id.cdx", "basic_name.cdx" })
+            File.Copy(Path.Combine(dir, file), Path.Combine(copy, file));
+        var mapping = new TypedMapping();
+        using (var session = DbfSession.Open(copy))
+        {
+            using (var readOnly = session.OpenTable("basic.dbf", mapping, "UA866", Cp866))
+            {
+                bool rejected = false;
+                try { readOnly.MarkDeleted(readOnly.ReadAt(2).Reference); } catch (InvalidOperationException) { rejected = true; }
+                Require(rejected, "read-only delete accepted");
+            }
+            using (var table = session.OpenTable("basic.dbf", mapping, "UA866", Cp866, mode: DbfOpenMode.SharedReadWrite))
+            {
+                var reference = table.ReadAt(2).Reference;
+                table.MarkDeleted(reference);
+                table.MarkDeleted(reference);
+                Require(table.Read(reference) == null && table.Index(mapping.ById).FindFirst(2) == null, "delete not visible");
+                table.Recall(reference);
+                table.Recall(reference);
+                Equal(2, table.Index(mapping.ById).FindFirst(2).Value.Id, "recalled index entry");
+                table.MarkDeleted(reference);
+            }
+        }
+        DbfHarbour.UseReadOnly(Path.Combine(copy, "basic.dbf"), "CHECK_DELETE", true, "UA866");
+        try
+        {
+            DbfHarbour.Indexes.Load(Path.Combine(copy, "basic_id.cdx"));
+            DbfHarbour.Indexes.Load(Path.Combine(copy, "basic_name.cdx"));
+            DbfHarbour.GoTo(2);
+            Require(DbfHarbour.IsRecordDeleted, "delete not persisted after reopening");
+            DbfHarbour.Indexes.Select("NAME");
+            Require(DbfHarbour.Indexes.Seek("BOB", encoding: Cp866), "index not maintained");
+        }
+        finally { DbfHarbour.CloseArea("CHECK_DELETE"); }
+        Console.WriteLine("PASS: typed delete, recall and index reopening");
     }
 
     private sealed class MappingProbe : DbfMapping<MappingModel>
