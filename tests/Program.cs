@@ -42,6 +42,7 @@ internal static class Program
                 TypedDeleted(working);
                 TypedDeletionWrite(working);
                 TypedInsert(working);
+                TypedUpdate(working);
                 WriteBasic(working);
                 SpecialTypes(working);
             }
@@ -331,6 +332,60 @@ internal static class Program
             Equal(input.Stamp, result.Value.Stamp, "insert timestamp");
         }
         Console.WriteLine("PASS: typed insert validation and reopened indexes");
+    }
+
+    private static void TypedUpdate(string dir)
+    {
+        string copy = Path.Combine(dir, "typed-update");
+        Directory.CreateDirectory(copy);
+        foreach (string file in new[] { "basic.dbf", "basic.fpt", "basic_id.cdx", "basic_name.cdx", "special.dbf", "special_id.cdx", "special_time.cdx" })
+            File.Copy(Path.Combine(dir, file), Path.Combine(copy, file));
+        var mapping = new TypedMapping();
+        using (var session = DbfSession.Open(copy))
+        using (var table = session.OpenTable("basic.dbf", mapping, "UA866", Cp866, mode: DbfOpenMode.SharedReadWrite))
+        {
+            var reference = table.ReadAt(1).Reference;
+            int calls = 0;
+            var updated = table.Update(reference, row => { calls++; row.Name = "ИЗМЕНЕНО"; });
+            Equal(1, calls, "update callback count");
+            Equal("ИЗМЕНЕНО", updated.Value.Name, "updated name");
+            Equal(1, table.Index(mapping.ByName).FindFirst("ИЗМЕНЕНО").Value.Id, "updated index");
+            bool rejected = false;
+            try { table.Update(reference, row => { row.Name = "bad🙂"; }); } catch (EncoderFallbackException) { rejected = true; }
+            Require(rejected && table.Read(reference).Value.Name == "ИЗМЕНЕНО", "invalid update changed row");
+            rejected = false;
+            try { table.Update(reference, row => { row.Name = "NO"; throw new ApplicationException("callback"); }); }
+            catch (ApplicationException) { rejected = true; }
+            Require(rejected && table.Read(reference).Value.Name == "ИЗМЕНЕНО", "failed callback changed row");
+            rejected = false;
+            try { table.Update(reference, row => table.ReadAt(1)); } catch (InvalidOperationException) { rejected = true; }
+            Require(rejected && table.Read(reference).Value.Name == "ИЗМЕНЕНО", "callback reentry accepted");
+            table.MarkDeleted(reference);
+            rejected = false;
+            try { table.Update(reference, row => row.Name = "NO"); } catch (InvalidOperationException) { rejected = true; }
+            Require(rejected, "deleted row updated");
+        }
+        using (var session = DbfSession.Open(copy))
+        using (var table = session.OpenTable("special.dbf", new TypedSpecialMapping(), "UA866", Cp866, mode: DbfOpenMode.SharedReadWrite))
+        {
+            var before = table.ReadAt(1);
+            var unchanged = table.Update(before.Reference, row => { row.Id = 999; row.Version = 999; });
+            Equal(before.Value.Version, unchanged.Value.Version, "no-op advanced generated version");
+            Equal(before.Value.Id, unchanged.Value.Id, "generated id changed");
+            var changed = table.Update(before.Reference, row => row.Name = "UPDATED");
+            Require(changed.Value.Version > before.Value.Version, "update did not advance generated version");
+        }
+        DbfHarbour.UseReadOnly(Path.Combine(copy, "basic.dbf"), "CHECK_UPDATE", true, "UA866");
+        try
+        {
+            DbfHarbour.Indexes.Load(Path.Combine(copy, "basic_id.cdx"));
+            DbfHarbour.Indexes.Load(Path.Combine(copy, "basic_name.cdx"));
+            DbfHarbour.Indexes.Select("NAME");
+            Require(DbfHarbour.Indexes.Seek("ИЗМЕНЕНО", encoding: Cp866), "updated index missing after reopen");
+            Equal(12.50m, Convert.ToDecimal(DbfHarbour.GetValues(new[] { "AMOUNT" }, Cp866).Single(), CultureInfo.InvariantCulture), "unmapped field changed");
+        }
+        finally { DbfHarbour.CloseArea("CHECK_UPDATE"); }
+        Console.WriteLine("PASS: typed update, validation, no-op and reopened indexes");
     }
 
     private sealed class MappingProbe : DbfMapping<MappingModel>

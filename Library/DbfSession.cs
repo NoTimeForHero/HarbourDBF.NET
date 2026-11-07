@@ -15,6 +15,7 @@ namespace HarbourDBF.NET
         private static readonly object Gate = new object();
         private static Thread owner;
         private static int sessions;
+        private static bool callbackActive;
         private readonly Thread thread;
         private readonly List<IDisposable> tables = new List<IDisposable>();
         private bool disposed;
@@ -38,7 +39,11 @@ namespace HarbourDBF.NET
         {
             if (Thread.CurrentThread != thread) throw new InvalidOperationException("The session may only be used on its owning thread.");
             if (disposed) throw new ObjectDisposedException(nameof(DbfSession));
+            if (callbackActive) throw new InvalidOperationException("Typed DBF operations cannot be called from an update callback.");
         }
+
+        internal static void EnterCallback() { callbackActive = true; }
+        internal static void ExitCallback() { callbackActive = false; }
 
         public DbfTable<T> OpenTable<T>(string path, DbfMapping<T> mapping, string codepage = "", Encoding encoding = null,
             DbfDeletedRecords deletedRecords = DbfDeletedRecords.Exclude, DbfOpenMode mode = DbfOpenMode.SharedReadOnly) where T : class, new()
@@ -61,6 +66,7 @@ namespace HarbourDBF.NET
         {
             if (Thread.CurrentThread != thread) throw new InvalidOperationException("The session may only be disposed on its owning thread.");
             if (disposed) return;
+            if (callbackActive) throw new InvalidOperationException("The session cannot be disposed from an update callback.");
             var errors = new List<Exception>();
             while (tables.Count != 0)
             {

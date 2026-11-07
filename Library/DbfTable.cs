@@ -238,6 +238,58 @@ namespace HarbourDBF.NET
 
         public void Recall(DbfRecordRef<T> reference) => SetDeleted(reference, false);
 
+        public DbfRecord<T> Update(DbfRecordRef<T> reference, Action<T> update)
+        {
+            Check();
+            if (!writable) throw new InvalidOperationException("The table is read-only.");
+            if (reference == null) throw new ArgumentNullException(nameof(reference));
+            if (!ReferenceEquals(reference.Owner, this)) throw new ArgumentException("The reference belongs to another table.", nameof(reference));
+            if (update == null) throw new ArgumentNullException(nameof(update));
+            DbfHarbour.SelectArea(alias);
+            if (reference.Number > DbfHarbour.TotalRecords) throw new InvalidOperationException("The referenced record no longer exists.");
+            EnsureNoExistingLocks();
+            if (!DbfHarbour.RecordLock(reference.Number)) throw new DbfLockException(reference.Number);
+            Exception failure = null;
+            DbfRecord<T> result = null;
+            try
+            {
+                DbfHarbour.GoTo(reference.Number);
+                if (DbfHarbour.IsRecordDeleted) throw new InvalidOperationException("A deleted record cannot be updated.");
+                var current = ReadAt(reference.Number);
+                if (current == null) throw new InvalidOperationException("The referenced record could not be read.");
+                var before = fields.Select(field => field.Property.GetValue(current.Value)).ToArray();
+                DbfSession.EnterCallback();
+                try { update(current.Value); }
+                finally { DbfSession.ExitCallback(); }
+                var changed = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+                var strictEncoding = (Encoding)encoding.Clone();
+                strictEncoding.EncoderFallback = EncoderFallback.ExceptionFallback;
+                for (int i = 0; i < fields.Count; i++)
+                {
+                    var field = fields[i];
+                    var schema = schemaFields[field.Name];
+                    if (IsGenerated(schema.Type)) continue;
+                    object value = field.Property.GetValue(current.Value);
+                    if (Equals(before[i], value)) continue;
+                    ValidateWriteValue(schema, value, strictEncoding);
+                    changed.Add(field.Name, value);
+                }
+                if (changed.Count != 0)
+                {
+                    DbfHarbour.SelectArea(alias);
+                    InternalUniversal.SetValues(new DatabaseFieldsInfo(fullSchema), changed, strictEncoding);
+                    DbfHarbour.Commit();
+                }
+                result = ReadAt(reference.Number);
+                if (result == null) throw new InvalidOperationException("The updated record could not be read.");
+            }
+            catch (Exception error) { failure = error; }
+            try { DbfHarbour.SelectArea(alias); DbfHarbour.RecordLock(reference.Number, true); }
+            catch (Exception error) { failure = failure == null ? error : new AggregateException(failure, error); }
+            if (failure != null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
+            return result;
+        }
+
         public DbfRecord<T> Insert(T value, bool strict = false)
         {
             Check();
