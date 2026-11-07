@@ -31,11 +31,11 @@ PROCEDURE Main( cDir, cMode )
       ELSE
       Check( ! hb_FileExists( cDbf ) .AND. ! hb_FileExists( cCdx ), "refusing to overwrite fixture" )
       cStage := "create"
-      dbCreate( cDbf, { { "ID", "N", 6, 0 }, { "NAME", "C", 20, 0 }, { "VIEW", "N", 4, 0 } }, "DBFCDX" )
+      dbCreate( cDbf, { { "ID", "N", 6, 0 }, { "NAME", "C", 20, 0 }, { "VIEW", "N", 4, 0 }, { "BIRTH", "D", 8, 0 } }, "DBFCDX" )
       dbUseArea( .T., "DBFCDX", cDbf, "COMPLEX", .F., .F., "UA866" )
       cStage := "records"
-      APPEND BLANK; REPLACE ID WITH 1, NAME WITH cLower, VIEW WITH 1
-      APPEND BLANK; REPLACE ID WITH 2, NAME WITH cUpper, VIEW WITH 1
+      APPEND BLANK; REPLACE ID WITH 1, NAME WITH cLower, VIEW WITH 1, BIRTH WITH hb_SToD("20000102")
+      APPEND BLANK; REPLACE ID WITH 2, NAME WITH cUpper, VIEW WITH 1, BIRTH WITH hb_SToD("20000102")
       APPEND BLANK; REPLACE ID WITH 3, NAME WITH cOther, VIEW WITH 1
       APPEND BLANK; REPLACE ID WITH 4, NAME WITH cUpper, VIEW WITH 2
       cStage := "index id"
@@ -49,13 +49,17 @@ PROCEDURE Main( cDir, cMode )
       cStage := "index category"
       dbGoTop()
       INDEX ON IIF(VIEW=1,'A','B')+UPPER(PADR(NAME,30)) TAG CATEGORY TO ( cCdx ) ADDITIVE
+      cStage := "index date"
+      dbGoTop()
+      INDEX ON DTOS(BIRTH) TAG DATEKEY TO ( cCdx ) ADDITIVE
       dbCloseArea()
       dbUseArea( .T., "DBFCDX", cDbf, "COMPLEX", .F., .T., "UA866" )
       OrdListAdd( cCdx )
-      Check( OrdCount() == 4, "multi-tag count" )
+      Check( OrdCount() == 5, "multi-tag count" )
       OrdSetFocus( "NAME" ); Check( dbSeek( cUpper ) .AND. FIELD->ID == 1, "uppercase search" )
       OrdSetFocus( "VIEWNAME" ); Check( dbSeek( Str(1,4,0)+PadR(cUpper,30) ) .AND. FIELD->ID == 1, "composite search" )
       OrdSetFocus( "CATEGORY" ); Check( dbSeek( "A"+PadR(cUpper,30) ) .AND. FIELD->ID == 1, "category search" )
+      OrdSetFocus( "DATEKEY" ); Check( dbSeek( "20000102" ) .AND. FIELD->ID == 1, "date key search" )
       dbCloseArea()
       OutStd( "PASS: generated and verified multi-tag fixture" + hb_eol() )
       ENDIF

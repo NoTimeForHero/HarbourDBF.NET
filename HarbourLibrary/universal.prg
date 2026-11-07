@@ -71,6 +71,11 @@ FUNCTION INTERNAL_FORMAT_KEY(cData)
         RETURN { "ERROR" => "UPPER requires text" }
       ENDIF
       xValue := Upper(xValue)
+    ELSEIF cOp == "DTOS"
+      IF ValType(xValue) != "C" .OR. Len(xValue) != 8
+        RETURN { "ERROR" => "DTOS requires a date" }
+      ENDIF
+      xValue := DToS(hb_SToD(xValue))
     ELSE
       RETURN { "ERROR" => "Unknown key formatting operation" }
     ENDIF

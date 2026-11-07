@@ -114,6 +114,7 @@ internal static class Program
         public int Id { get; set; }
         public string Name { get { ObservedCodepage = DbfHarbour.Eval("hb_cdpSelect()"); return name; } set { name = value; } }
         public int View { get; set; }
+        public DateTime? Birth { get; set; }
     }
 
     private sealed class ComplexMapping : DbfMapping<ComplexModel>
@@ -121,17 +122,20 @@ internal static class Program
         public DbfIndexMapping<ComplexModel, string> ByName { get; }
         public DbfIndexMapping<ComplexModel, ComplexKey> ByViewName { get; }
         public DbfIndexMapping<ComplexModel, ComplexKey> ByCategory { get; }
+        public DbfIndexMapping<ComplexModel, DateTime?> ByDate { get; }
         public ComplexMapping()
         {
             Field(x => x.Id, "ID");
             Field(x => x.Name, "NAME").TrimEnd();
             Field(x => x.View, "VIEW");
+            Field(x => x.Birth, "BIRTH");
             ByName = Index(x => x.Name, "complex.cdx", "NAME", DbfKeyFormat.AllTrim().ThenPadRight(20).Upper());
             ByViewName = CompositeIndex<ComplexKey>("complex.cdx", "VIEWNAME")
                 .Part(key => key.View, row => row.View, DbfKeyFormat.Str(4))
                 .Part(key => key.Name, row => row.Name, DbfKeyFormat.PadRight(30).Upper());
             ByCategory = Index<ComplexKey>("complex.cdx", "CATEGORY")
                 .SearchKey("{|view, name| IIF(view = 1, 'A', 'B') + UPPER(PADR(name,30)) }", key => new object[] { key.View, key.Name });
+            ByDate = Index(x => x.Birth, "complex.cdx", "DATEKEY", DbfKeyFormat.Dtos());
         }
     }
 
@@ -567,6 +571,10 @@ internal static class Program
         using (var table = session.OpenTable("complex.dbf", mapping, "UA866", Cp866, mode: DbfOpenMode.SharedReadWrite))
         {
             Equal(3, table.Index(mapping.ByName).EqualTo("  алиса ").Count(), "formatted name search");
+            Equal(2, table.Index(mapping.ByDate).EqualTo(new DateTime(2000, 1, 2)).Count(), "DTOS date search");
+            bool badDate = false;
+            try { table.Index(mapping.ByDate).FindFirst(new DateTime(2000, 1, 2, 12, 0, 0)); } catch (ArgumentException) { badDate = true; }
+            Require(badDate, "date key silently discarded time");
             Equal(1, table.Index(mapping.ByName).FindFirst("алиса").Value.Id, "formatted first key");
             var complex = table.Index(mapping.ByViewName);
             var key = new ComplexKey { View = 1, Name = "алиса" };

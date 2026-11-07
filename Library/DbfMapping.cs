@@ -47,7 +47,8 @@ namespace HarbourDBF.NET
             if (property == null || member.Expression != key.Parameters[0]) throw new ArgumentException("Select a mapped property.", nameof(key));
             var field = fields.Find(x => x.Property == property);
             if (field == null) throw new ArgumentException("The indexed property must be mapped first.", nameof(key));
-            if (typeof(TKey) != typeof(int) && typeof(TKey) != typeof(string)) throw new ArgumentException("Only int and string keys are supported.", nameof(key));
+            if (typeof(TKey) != typeof(int) && typeof(TKey) != typeof(string) && !(typeof(TKey) == typeof(DateTime?) && format != null))
+                throw new ArgumentException("Unsupported index key type.", nameof(key));
             if (format != null && format.InputType != typeof(TKey)) throw new ArgumentException("The key type does not match the format.", nameof(format));
             if (string.IsNullOrWhiteSpace(file)) throw new ArgumentException("An index file is required.", nameof(file));
             if (string.IsNullOrWhiteSpace(tag)) throw new ArgumentException("An index tag is required.", nameof(tag));

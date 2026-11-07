@@ -173,7 +173,8 @@ namespace HarbourDBF.NET
         {
             var schema = schemaFields[field.Name];
             bool fieldSupported = field.Property.PropertyType == typeof(int) && schema.Type == "N" && schema.Point == 0 ||
-                field.Property.PropertyType == typeof(string) && schema.Type == "C" && encoding.IsSingleByte;
+                field.Property.PropertyType == typeof(string) && schema.Type == "C" && encoding.IsSingleByte ||
+                field.Property.PropertyType == typeof(DateTime?) && schema.Type == "D" && format != null && format.InputType == typeof(DateTime?);
             return fieldSupported && (format == null || encoding.IsSingleByte && format.Width.HasValue);
         }
 

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 using HarbourDBF.NET.Beta;
@@ -33,6 +34,8 @@ namespace HarbourDBF.NET
 
         public static DbfKeyFormat AllTrim() => new DbfKeyFormat(typeof(string), null, new[] { new object[] { "ALLTRIM" } });
 
+        public static DbfKeyFormat Dtos() => new DbfKeyFormat(typeof(DateTime?), 8, new[] { new object[] { "DTOS" } });
+
         public DbfKeyFormat ThenPadRight(int width)
         {
             CheckWidth(width);
@@ -58,6 +61,7 @@ namespace HarbourDBF.NET
                     case "PADR": input = "PADR(" + input + "," + step[1] + ")"; break;
                     case "ALLTRIM": input = "ALLTRIM(" + input + ")"; break;
                     case "UPPER": input = "UPPER(" + input + ")"; break;
+                    case "DTOS": input = "DTOS(" + input + ")"; break;
                 }
             }
             return input;
@@ -65,13 +69,20 @@ namespace HarbourDBF.NET
 
         internal string Format(object value, Encoding encoding)
         {
-            if (value == null || value.GetType() != InputType) throw new ArgumentException("Invalid key value type.", nameof(value));
+            if (value == null || value.GetType() != (Nullable.GetUnderlyingType(InputType) ?? InputType)) throw new ArgumentException("Invalid key value type.", nameof(value));
             var strict = (Encoding)encoding.Clone();
             strict.EncoderFallback = EncoderFallback.ExceptionFallback;
             if (value is string text)
             {
                 if (text.IndexOf('\0') >= 0) throw new ArgumentException("A key cannot contain a null character.", nameof(value));
                 strict.GetByteCount(text);
+            }
+            if (InputType == typeof(DateTime?))
+            {
+                var date = (DateTime)value;
+                if (date.Kind != DateTimeKind.Unspecified || date.TimeOfDay != TimeSpan.Zero)
+                    throw new ArgumentException("Date keys require an unspecified kind and no time component.", nameof(value));
+                value = date.ToString("yyyyMMdd", CultureInfo.InvariantCulture);
             }
             string json = JsonConvert.SerializeObject(new { value, steps });
             JToken result = InternalUniversal.ProcedureCall<JToken>("FORMAT_KEY", json, strict);
