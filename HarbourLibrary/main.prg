@@ -258,7 +258,7 @@ BOOL WINAPI DllMain( HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved )  
       //printf("Attached to main!\n");
       //MessageBox( 0, "We're in DLLMain", "1", 0 );
       hb_vmInit( FALSE );
-      hb_itemDoC( "INIT_LIBRARY", 0);
+      hb_itemRelease( hb_itemDoC( "INIT_LIBRARY", 0) );
       break;
     case DLL_PROCESS_DETACH:
       hb_vmQuit();
@@ -270,7 +270,7 @@ BOOL WINAPI DllMain( HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved )  
 HB_EXPORT void* _export DBF_GOTO(long recordNumber)
 {
   PHB_ITEM pRecord = hb_itemPutNL( NULL, recordNumber );
-  hb_itemDoC( "DBF_GOTO", 1, pRecord);
+  hb_itemRelease( hb_itemDoC( "DBF_GOTO", 1, pRecord) );
   hb_itemRelease( pRecord );
   return NULL;
 }
@@ -278,7 +278,7 @@ HB_EXPORT void* _export DBF_GOTO(long recordNumber)
 HB_EXPORT void* _export DBF_SKIP(long recordCount)
 {
   PHB_ITEM pRecord = hb_itemPutNL( NULL, recordCount );
-  hb_itemDoC( "DBF_SKIP", 1, pRecord);
+  hb_itemRelease( hb_itemDoC( "DBF_SKIP", 1, pRecord) );
   hb_itemRelease( pRecord );
   return NULL;
 }
@@ -287,6 +287,7 @@ HB_EXPORT void* _export DBF_GET_LAST_ERROR()
 {
   PHB_ITEM pValue = hb_itemDoC( "DBF_GET_LAST_ERROR", 0);
   char * rawResult = (char*) hb_itemGetC(pValue);
+  hb_itemRelease( pValue );
   return rawResult;
 }
 
@@ -296,20 +297,23 @@ HB_EXPORT void* _export DBF_USE(const char* cDatabaseName, const char* cAlias, B
   PHB_ITEM pAlias = hb_itemPutC( NULL, cAlias );
   PHB_ITEM pCodepage = hb_itemPutC( NULL, cCodepage );
   PHB_ITEM pExclusive = hb_itemPutL( NULL, lExclusive );
-  hb_itemDoC( "DBF_USE", 4, pName, pAlias, pExclusive, pCodepage);
+  hb_itemRelease( hb_itemDoC( "DBF_USE", 4, pName, pAlias, pExclusive, pCodepage) );
   hb_itemRelease( pName );
+  hb_itemRelease( pAlias );
+  hb_itemRelease( pCodepage );
+  hb_itemRelease( pExclusive );
   return NULL;
 }
 
 HB_EXPORT void* _export DBF_APPEND()
 {
-  hb_itemDoC( "DBF_APPEND", 0);
+  hb_itemRelease( hb_itemDoC( "DBF_APPEND", 0) );
   return NULL;
 }
 
 HB_EXPORT void* _export DBF_COMMIT()
 {
-  hb_itemDoC( "DBF_COMMIT", 0);
+  hb_itemRelease( hb_itemDoC( "DBF_COMMIT", 0) );
   return NULL;
 }
 
@@ -341,7 +345,7 @@ HB_EXPORT void* _export DBF_SET_VALUES(const char * cJson)
 {
   //MessageBox( 0, cJson, "1", 0 );  
   PHB_ITEM pJson = hb_itemPutC( NULL, cJson );
-  hb_itemDoC( "DBF_SET_VALUES", 1, pJson);
+  hb_itemRelease( hb_itemDoC( "DBF_SET_VALUES", 1, pJson) );
   hb_itemRelease( pJson );
   return NULL;
 }
@@ -353,7 +357,7 @@ HB_EXPORT void* _export DBF_CREATE(const char* cDatabaseName, const char* cJson)
   //MessageBox( 0, cJson, "1", 0 );
   PHB_ITEM pName = hb_itemPutC( NULL, cDatabaseName );
   PHB_ITEM pJson = hb_itemPutC( NULL, cJson );
-  hb_itemDoC( "DBF_CREATE", 2, pName, pJson);
+  hb_itemRelease( hb_itemDoC( "DBF_CREATE", 2, pName, pJson) );
   hb_itemRelease( pName );
   hb_itemRelease( pJson );
   return NULL;
@@ -362,7 +366,7 @@ HB_EXPORT void* _export DBF_CREATE(const char* cDatabaseName, const char* cJson)
 HB_EXPORT void* _export DBF_SELECT_AREA(const char* cAlias)
 {
   PHB_ITEM pAlias = hb_itemPutC( NULL, cAlias );
-  hb_itemDoC( "DBSELECTAREA", 1, pAlias);
+  hb_itemRelease( hb_itemDoC( "DBSELECTAREA", 1, pAlias) );
   hb_itemRelease( pAlias );
   return NULL;
 }
@@ -373,6 +377,7 @@ HB_EXPORT HB_BOOL _export DBF_CLOSE_AREA(const char* cAlias)
   PHB_ITEM pResult = hb_itemDoC( "DBF_CLOSE_AREA", 1, pAlias);
   HB_BOOL value = hb_itemGetL( pResult) ;
   hb_itemRelease( pAlias );
+  hb_itemRelease( pResult );
   return value;
 }
 
@@ -407,21 +412,21 @@ HB_EXPORT void _export DBF_UNSAFE_FREE(char* target)
 HB_EXPORT void _export DBF_INDEX_LOAD(char* cArg1)
 {
   PHB_ITEM pArg1 = hb_itemPutC( NULL, cArg1 );
-  hb_itemDoC( "DBF_INDEX_LOAD", 1, pArg1);
+  hb_itemRelease( hb_itemDoC( "DBF_INDEX_LOAD", 1, pArg1) );
   hb_itemRelease( pArg1 );
 }
 
 HB_EXPORT void _export DBF_INDEX_SELECT(long cArg1)
 {
   PHB_ITEM pArg1 = hb_itemPutNL( NULL, cArg1 );
-  hb_itemDoC( "DBF_INDEX_SELECT", 1, pArg1);
+  hb_itemRelease( hb_itemDoC( "DBF_INDEX_SELECT", 1, pArg1) );
   hb_itemRelease( pArg1 );
 }
 
   HB_EXPORT void _export DBF_INDEX_SELECT_STR(char* cArg1)
 {
   PHB_ITEM pArg1 = hb_itemPutC( NULL, cArg1 );
-  hb_itemDoC( "DBF_INDEX_SELECT", 1, pArg1);
+  hb_itemRelease( hb_itemDoC( "DBF_INDEX_SELECT", 1, pArg1) );
   hb_itemRelease( pArg1 );
 }
 
@@ -540,7 +545,7 @@ HB_EXPORT void* _export DBF_MAKE_INDEX(const char * cAlias, const char * cTag, c
     PHB_ITEM pTag = hb_itemPutC( NULL, cTag );
   PHB_ITEM pIndex = hb_itemPutC( NULL, cIndex );
   PHB_ITEM pFor = hb_itemPutC( NULL, cFor );
-  hb_itemDoC( "DBF_MAKE_INDEX", 4, pAlias, pTag, pIndex, pFor );
+  hb_itemRelease( hb_itemDoC( "DBF_MAKE_INDEX", 4, pAlias, pTag, pIndex, pFor ) );
   hb_itemRelease( pAlias );
   hb_itemRelease( pIndex );
   hb_itemRelease( pTag );

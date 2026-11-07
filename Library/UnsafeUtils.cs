@@ -26,12 +26,14 @@ namespace HarbourDBF.NET
         {
             if (target == IntPtr.Zero) return string.Empty;
             encoding = encoding ?? Constants.DefaultEncoding;
-            var raw = (byte*)target.ToPointer();
-            int length = 0;
-            while (raw[length] != 0) length++;
-            var message = encoding.GetString(raw, length);
-            UnsafeFree(target);
-            return message;
+            try
+            {
+                var raw = (byte*)target.ToPointer();
+                int length = 0;
+                while (raw[length] != 0) length++;
+                return encoding.GetString(raw, length);
+            }
+            finally { UnsafeFree(target); }
         }
     }
 }

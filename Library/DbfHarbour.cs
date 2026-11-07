@@ -48,8 +48,8 @@ namespace HarbourDBF.NET
         public static void CloseArea(string alias)
         {
             var success = _CloseArea(alias);
-            if (!success) throw new HarbourException($"Alias is not exists: {alias}");
             if (GetLastError(out var error)) throw new HarbourException(error);
+            if (!success) throw new HarbourException($"Alias is not exists: {alias}");
         }
 
 
@@ -126,8 +126,9 @@ namespace HarbourDBF.NET
         public static string Eval(string code)
         {
             var raw =_Eval(code);
+            var result = UnsafeUtils.GetString(raw);
             if (GetLastError(out var error)) throw new HarbourException(error);
-            return UnsafeUtils.GetString(raw);
+            return result;
         }
 
         [DllImport(Constants.DllName, EntryPoint = "_DBF_GET_ALIAS", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]

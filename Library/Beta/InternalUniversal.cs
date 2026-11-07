@@ -59,8 +59,8 @@ namespace HarbourDBF.NET.Beta
             var rawCommand = UnsafeUtils.GetNullTerminatedBytes(command, enc);
             var rawData = UnsafeUtils.GetNullTerminatedBytes(data, enc);
             var rawPtr = _ProcedureCall(rawCommand, rawData);
-            if (DbfHarbour.GetLastError(out var intErr)) throw new HarbourException(intErr);
             var json = UnsafeUtils.GetString(rawPtr, enc);
+            if (DbfHarbour.GetLastError(out var intErr)) throw new HarbourException(intErr);
             var result = JsonConvert.DeserializeObject<JObject>(json);
             if (result == null) throw new NullReferenceException("Response json is null!");
 
