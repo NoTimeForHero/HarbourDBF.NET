@@ -106,14 +106,16 @@ namespace HarbourDBF.NET
             if (GetLastError(out var error)) throw new HarbourException(error);
         }
 
-        [DllImport(Constants.DllName, EntryPoint = "_DBF_GOTO", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        [DllImport(Constants.DllName, EntryPoint = "_DBF_GOTO64", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         private static extern IntPtr _GoTo(long recordNumber);
         /// <summary>
         /// Перейти к указанной записи
         /// </summary>
-        /// <param name="recordNumber">Индекс записи</param>
+        /// <param name="recordNumber">Номер записи от 0 до 4294967295 включительно.</param>
         public static void GoTo(long recordNumber)
         {
+            if (recordNumber < 0 || recordNumber > uint.MaxValue)
+                throw new ArgumentOutOfRangeException(nameof(recordNumber));
             _GoTo(recordNumber);
             if (GetLastError(out var error)) throw new HarbourException(error);
         }

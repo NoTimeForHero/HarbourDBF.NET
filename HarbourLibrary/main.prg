@@ -310,6 +310,16 @@ HB_EXPORT void* _export DBF_GOTO(long recordNumber)
   return NULL;
 }
 
+/* Keep the original export for existing native callers.  C# long is 64-bit,
+   whereas Windows C long is 32-bit, including in 64-bit builds. */
+HB_EXPORT void* _export DBF_GOTO64(HB_LONGLONG recordNumber)
+{
+  PHB_ITEM pRecord = hb_itemPutNLL( NULL, recordNumber );
+  hb_itemRelease( hb_itemDoC( "DBF_GOTO", 1, pRecord) );
+  hb_itemRelease( pRecord );
+  return NULL;
+}
+
 HB_EXPORT void* _export DBF_SKIP(long recordCount)
 {
   PHB_ITEM pRecord = hb_itemPutNL( NULL, recordCount );
