@@ -114,6 +114,17 @@ internal static class Program
         }
     }
 
+    private sealed class PartialSpecialMapping : DbfMapping<TypedSpecial>
+    {
+        public PartialSpecialMapping()
+        {
+            Field(x => x.Stamp, "STAMP");
+            Field(x => x.Name, "NAME");
+            IndexBag("special_id.cdx");
+            IndexBag("special_time.cdx");
+        }
+    }
+
     private sealed class TypedMapping : DbfMapping<TypedModel>
     {
         public DbfIndexMapping<TypedModel, int> ById { get; }
@@ -304,6 +315,13 @@ internal static class Program
         }
         foreach (string file in new[] { "special.dbf", "special_id.cdx", "special_time.cdx" })
             File.Copy(Path.Combine(dir, file), Path.Combine(copy, file));
+        using (var session = DbfSession.Open(copy))
+        using (var table = session.OpenTable("special.dbf", new PartialSpecialMapping(), "UA866", Cp866, mode: DbfOpenMode.SharedReadWrite))
+        {
+            bool rejected = false;
+            try { table.Insert(new TypedSpecial { Name = "FOUR" }, strict: true); } catch (InvalidOperationException) { rejected = true; }
+            Require(rejected && table.Scan().Count() == 3, "strict insert accepted unmapped generated fields");
+        }
         using (var session = DbfSession.Open(copy))
         using (var table = session.OpenTable("special.dbf", new TypedSpecialMapping(), "UA866", Cp866, mode: DbfOpenMode.SharedReadWrite))
         {

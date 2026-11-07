@@ -245,7 +245,7 @@ namespace HarbourDBF.NET
             if (value == null) throw new ArgumentNullException(nameof(value));
             if (strict)
                 foreach (var field in fullSchema)
-                    if (!IsGenerated(field.Type) && !schemaFields.ContainsKey(field.Name))
+                    if (!schemaFields.ContainsKey(field.Name))
                         throw new InvalidOperationException("Strict insert requires a mapping for DBF field " + field.Name + ".");
 
             var values = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
