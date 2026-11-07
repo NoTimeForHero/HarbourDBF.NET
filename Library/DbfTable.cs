@@ -196,8 +196,17 @@ namespace HarbourDBF.NET
                 if (string.IsNullOrWhiteSpace(text) || text.All(c => c == '0')) return null;
                 return DateTime.ParseExact(text, dbfType == "D" ? "yyyyMMdd" : "yyyyMMddHHmmssfff", CultureInfo.InvariantCulture, DateTimeStyles.None);
             }
-            if (type == typeof(int)) return checked(Convert.ToInt32(value, CultureInfo.InvariantCulture));
-            if (type == typeof(long)) return Convert.ToInt64(value, CultureInfo.InvariantCulture);
+            if (type == typeof(int) || type == typeof(long))
+            {
+                long integer;
+                if (value is long n) integer = n;
+                else if (value is int i) integer = i;
+                else if (value is double d && !double.IsNaN(d) && !double.IsInfinity(d) &&
+                         Math.Abs(d) < 9007199254740992d && Math.Truncate(d) == d)
+                    integer = checked((long)d);
+                else throw new InvalidOperationException("The DBF numeric value cannot be converted to an exact integer.");
+                return type == typeof(int) ? (object)checked((int)integer) : integer;
+            }
             if (value == null || !type.IsInstanceOfType(value)) throw new InvalidOperationException("Unexpected DBF value for " + dbfType);
             return value;
         }

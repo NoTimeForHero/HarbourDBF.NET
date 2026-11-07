@@ -16,7 +16,7 @@ internal static class Program
 
     private static int Main()
     {
-        try { PathResolution(); MappingDeclarations(); }
+        try { PathResolution(); MappingDeclarations(); ExactIntegerConversion(); }
         catch (Exception error) { Console.Error.WriteLine("FAIL: " + error); return 1; }
         if (IntPtr.Size != 4) { Console.Error.WriteLine("The current native DLL requires an x86 process."); return 1; }
         if (!File.Exists(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "hbdbf.dll"))) { Console.Error.WriteLine("Build HarbourLibrary/hbdbf.dll, then rebuild LightTests."); return 1; }
@@ -194,6 +194,26 @@ internal static class Program
         try { mapping.TrimNumber(); } catch (InvalidOperationException) { badTrim = true; }
         Require(duplicate && readOnly && badTrim, "invalid field mapping was accepted");
         Console.WriteLine("PASS: field mapping declarations");
+    }
+
+    private static void ExactIntegerConversion()
+    {
+        var convert = typeof(DbfTable<TypedModel>).GetMethod("ConvertValue", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+        Func<object, Type, object> read = (value, type) => convert.Invoke(null, new[] { value, type, "N" });
+        Equal(42, (int)read(42L, typeof(int)), "integer conversion");
+        Equal(42L, (long)read(42.0, typeof(long)), "exact JSON double conversion");
+        foreach (object invalid in new object[] { null, 1.5, 9007199254740992d, double.NaN })
+        {
+            bool rejected = false;
+            try { read(invalid, typeof(long)); }
+            catch (System.Reflection.TargetInvocationException error) when (error.InnerException is InvalidOperationException) { rejected = true; }
+            Require(rejected, "inexact integer conversion was accepted");
+        }
+        bool overflow = false;
+        try { read((long)int.MaxValue + 1, typeof(int)); }
+        catch (System.Reflection.TargetInvocationException error) when (error.InnerException is OverflowException) { overflow = true; }
+        Require(overflow, "integer overflow was accepted");
+        Console.WriteLine("PASS: exact integer conversion");
     }
 
     private static void ReadBasic(string dir)
