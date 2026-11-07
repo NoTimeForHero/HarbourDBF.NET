@@ -41,6 +41,7 @@ internal static class Program
                 TypedRead(working);
                 TypedDeleted(working);
                 TypedDeletionWrite(working);
+                TypedInsert(working);
                 WriteBasic(working);
                 SpecialTypes(working);
             }
@@ -88,6 +89,29 @@ internal static class Program
         public string Name { get; set; }
         public DateTime? Birth { get; set; }
         public bool Active { get; set; }
+    }
+
+    private sealed class TypedSpecial
+    {
+        public int Id { get; set; }
+        public DateTime? Changed { get; set; }
+        public long Version { get; set; }
+        public DateTime? Stamp { get; set; }
+        public string Name { get; set; }
+    }
+
+    private sealed class TypedSpecialMapping : DbfMapping<TypedSpecial>
+    {
+        public TypedSpecialMapping()
+        {
+            Field(x => x.Id, "IDZ");
+            Field(x => x.Changed, "TSZ");
+            Field(x => x.Version, "VMZ");
+            Field(x => x.Stamp, "STAMP");
+            Field(x => x.Name, "NAME").TrimEnd();
+            IndexBag("special_id.cdx");
+            IndexBag("special_time.cdx");
+        }
     }
 
     private sealed class TypedMapping : DbfMapping<TypedModel>
@@ -238,6 +262,57 @@ internal static class Program
         }
         finally { DbfHarbour.CloseArea("CHECK_DELETE"); }
         Console.WriteLine("PASS: typed delete, recall and index reopening");
+    }
+
+    private static void TypedInsert(string dir)
+    {
+        string copy = Path.Combine(dir, "typed-insert");
+        Directory.CreateDirectory(copy);
+        foreach (string file in new[] { "basic.dbf", "basic.fpt", "basic_id.cdx", "basic_name.cdx" })
+            File.Copy(Path.Combine(dir, file), Path.Combine(copy, file));
+        var mapping = new TypedMapping();
+        using (var session = DbfSession.Open(copy))
+        using (var table = session.OpenTable("basic.dbf", mapping, "UA866", Cp866, mode: DbfOpenMode.SharedReadWrite))
+        {
+            var model = new TypedModel { Id = 9, Name = "НОВАЯ", Birth = new DateTime(2000, 1, 2), Active = true };
+            Require(DbfHarbour.RecordLock(1), "could not arrange existing lock");
+            bool existingLockRejected = false;
+            try { table.Insert(model); } catch (InvalidOperationException) { existingLockRejected = true; }
+            Require(existingLockRejected && DbfHarbour.Eval("DbRLockList()") == "[1]", "insert altered an existing lock");
+            DbfHarbour.RecordLock(1, true);
+            bool rejected = false;
+            try { table.Insert(model, strict: true); } catch (InvalidOperationException) { rejected = true; }
+            Require(rejected && table.Scan().Count() == 3, "strict insert with incomplete mapping");
+            rejected = false;
+            try { table.Insert(new TypedModel { Id = 9, Name = new string('A', 200) }); } catch (ArgumentException) { rejected = true; }
+            Require(rejected && table.Scan().Count() == 3, "oversized insert changed table");
+            rejected = false;
+            try { table.Insert(new TypedModel { Id = 9, Name = "🙂" }); } catch (EncoderFallbackException) { rejected = true; }
+            Require(rejected && table.Scan().Count() == 3, "unencodable insert changed table");
+            var added = table.Insert(model);
+            Equal(4L, added.RecordNumber, "insert record number");
+            Equal("НОВАЯ", added.Value.Name, "insert value");
+            Require(!ReferenceEquals(model, added.Value), "insert returned input model");
+            Equal(9, table.Index(mapping.ById).FindFirst(9).Value.Id, "insert numeric index");
+            Equal(9, table.Index(mapping.ByName).FindFirst("НОВАЯ").Value.Id, "insert text index");
+        }
+        using (var session = DbfSession.Open(copy))
+        using (var table = session.OpenTable("basic.dbf", mapping, "UA866", Cp866))
+        {
+            Equal(4, table.Scan().Count(), "insert persisted");
+            Equal("НОВАЯ", table.Index(mapping.ById).FindFirst(9).Value.Name, "reopened insert index");
+        }
+        foreach (string file in new[] { "special.dbf", "special_id.cdx", "special_time.cdx" })
+            File.Copy(Path.Combine(dir, file), Path.Combine(copy, file));
+        using (var session = DbfSession.Open(copy))
+        using (var table = session.OpenTable("special.dbf", new TypedSpecialMapping(), "UA866", Cp866, mode: DbfOpenMode.SharedReadWrite))
+        {
+            var input = new TypedSpecial { Id = 999, Version = 999, Changed = new DateTime(2000, 1, 1), Name = "FOUR", Stamp = new DateTime(2020, 1, 2, 3, 4, 5) };
+            var result = table.Insert(input, strict: true);
+            Require(result.Value.Id != 999 && result.Value.Version != 999 && result.Value.Changed != input.Changed, "generated fields written from model");
+            Equal(input.Stamp, result.Value.Stamp, "insert timestamp");
+        }
+        Console.WriteLine("PASS: typed insert validation and reopened indexes");
     }
 
     private sealed class MappingProbe : DbfMapping<MappingModel>

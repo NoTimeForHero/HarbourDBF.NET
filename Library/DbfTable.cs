@@ -41,8 +41,10 @@ namespace HarbourDBF.NET
         private readonly DbfMapping<T> mapping;
         private readonly DbfDeletedRecords deletedRecords;
         private readonly bool writable;
+        private readonly bool shared;
         private readonly Dictionary<DbfIndexDefinition, int> orders = new Dictionary<DbfIndexDefinition, int>();
         private readonly Dictionary<string, FieldType> schemaFields = new Dictionary<string, FieldType>(StringComparer.OrdinalIgnoreCase);
+        private FieldType[] fullSchema;
         private bool disposed;
 
         internal DbfTable(DbfSession session, string path, DbfMapping<T> mapping, string codepage, Encoding encoding, DbfDeletedRecords deletedRecords, DbfOpenMode mode)
@@ -51,6 +53,7 @@ namespace HarbourDBF.NET
             this.mapping = mapping;
             this.deletedRecords = deletedRecords;
             writable = mode == DbfOpenMode.SharedReadWrite || mode == DbfOpenMode.ExclusiveReadWrite;
+            shared = mode == DbfOpenMode.SharedReadOnly || mode == DbfOpenMode.SharedReadWrite;
             this.encoding = (Encoding)(encoding ?? Constants.DefaultEncoding).Clone();
             this.encoding.DecoderFallback = DecoderFallback.ExceptionFallback;
             fields = mapping.Freeze();
@@ -83,6 +86,7 @@ namespace HarbourDBF.NET
 
         private void ValidateSchema(FieldType[] schema)
         {
+            fullSchema = schema;
             foreach (var field in fields)
             {
                 var matches = schema.Where(x => string.Equals(x.Name, field.Name, StringComparison.OrdinalIgnoreCase)).ToArray();
@@ -234,6 +238,84 @@ namespace HarbourDBF.NET
 
         public void Recall(DbfRecordRef<T> reference) => SetDeleted(reference, false);
 
+        public DbfRecord<T> Insert(T value, bool strict = false)
+        {
+            Check();
+            if (!writable) throw new InvalidOperationException("The table is read-only.");
+            if (value == null) throw new ArgumentNullException(nameof(value));
+            if (strict)
+                foreach (var field in fullSchema)
+                    if (!IsGenerated(field.Type) && !schemaFields.ContainsKey(field.Name))
+                        throw new InvalidOperationException("Strict insert requires a mapping for DBF field " + field.Name + ".");
+
+            var values = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+            var strictEncoding = (Encoding)encoding.Clone();
+            strictEncoding.EncoderFallback = EncoderFallback.ExceptionFallback;
+            foreach (var field in fields)
+            {
+                var schema = schemaFields[field.Name];
+                if (IsGenerated(schema.Type)) continue;
+                object item = field.Property.GetValue(value);
+                ValidateWriteValue(schema, item, strictEncoding);
+                values.Add(field.Name, item);
+            }
+
+            DbfHarbour.SelectArea(alias);
+            EnsureNoExistingLocks();
+            DbfHarbour.Append();
+            int number = DbfHarbour.ActiveRecord;
+            Exception failure = null;
+            DbfRecord<T> result = null;
+            try
+            {
+                if (number < 1 || number > DbfHarbour.TotalRecords) throw new InvalidOperationException("Append did not return a valid record number.");
+                if (shared && !JArray.Parse(DbfHarbour.Eval("DbRLockList()")).Any(x => (long)x == number))
+                    throw new InvalidOperationException("Append did not hold the new record lock.");
+                InternalUniversal.SetValues(new DatabaseFieldsInfo(fullSchema), values, strictEncoding);
+                DbfHarbour.Commit();
+                result = ReadAt(number);
+                if (result == null) throw new InvalidOperationException("The appended record could not be read.");
+            }
+            catch (Exception error) { failure = error; }
+            try { if (number > 0) { DbfHarbour.SelectArea(alias); DbfHarbour.RecordLock(number, true); } }
+            catch (Exception error) { failure = failure == null ? error : new AggregateException(failure, error); }
+            if (failure != null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
+            return result;
+        }
+
+        private static bool IsGenerated(string type) => type == "+" || type == "=" || type == "^";
+
+        private static void EnsureNoExistingLocks()
+        {
+            if (JArray.Parse(DbfHarbour.Eval("DbRLockList()")).Count != 0)
+                throw new InvalidOperationException("The work area already holds record locks.");
+        }
+
+        private static void ValidateWriteValue(FieldType field, object value, Encoding encoding)
+        {
+            if (field.Type == "C" || field.Type == "M")
+            {
+                if (!(value is string text)) throw new ArgumentException("A string is required for field " + field.Name + ".");
+                if (text.IndexOf('\0') >= 0) throw new ArgumentException("A string cannot contain a null character: " + field.Name);
+                int bytes = encoding.GetByteCount(text);
+                if (field.Type == "C" && bytes > field.Length) throw new ArgumentException("Value exceeds the width of field " + field.Name + ".");
+            }
+            else if (field.Type == "N")
+            {
+                string text = Convert.ToString(value, CultureInfo.InvariantCulture);
+                if (value == null || text.Length > field.Length) throw new ArgumentException("Number exceeds the width of field " + field.Name + ".");
+            }
+            else if (field.Type == "D" || field.Type == "@")
+            {
+                if (value == null) return;
+                var date = (DateTime)value;
+                if (date.Kind != DateTimeKind.Unspecified || (field.Type == "D" && date.TimeOfDay != TimeSpan.Zero) ||
+                    (field.Type == "@" && date.Ticks % TimeSpan.TicksPerMillisecond != 0))
+                    throw new ArgumentException("Invalid date, time or precision for field " + field.Name + ".");
+            }
+            else if (field.Type != "L") throw new InvalidOperationException("Writing field type " + field.Type + " is not supported.");
+        }
+
         private void SetDeleted(DbfRecordRef<T> reference, bool deleted)
         {
             Check();
@@ -242,6 +324,7 @@ namespace HarbourDBF.NET
             if (!ReferenceEquals(reference.Owner, this)) throw new ArgumentException("The reference belongs to another table.", nameof(reference));
             DbfHarbour.SelectArea(alias);
             if (reference.Number > DbfHarbour.TotalRecords) throw new InvalidOperationException("The referenced record no longer exists.");
+            EnsureNoExistingLocks();
             if (!DbfHarbour.RecordLock(reference.Number)) throw new DbfLockException(reference.Number);
             Exception failure = null;
             try
