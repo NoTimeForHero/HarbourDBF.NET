@@ -41,6 +41,7 @@ internal static class Program
                 DbfHarbour.Eval("Set(11,.F.)");
                 ReadBasic(working);
                 TypedRead(working);
+                TypedNestedPaths(working);
                 TypedDeleted(working);
                 TypedDeletionWrite(working);
                 TypedInsert(working);
@@ -133,6 +134,50 @@ internal static class Program
             Field(row => row.Amount, "AMOUNT");
             Field(row => row.Rate, "RATE");
         }
+    }
+
+    private sealed class NestedMapping : DbfMapping<TypedModel>
+    {
+        public DbfIndexMapping<TypedModel, int> ById { get; }
+        public NestedMapping()
+        {
+            Field(row => row.Id, "ID");
+            Field(row => row.Name, "NAME").TrimEnd();
+            ById = Index(row => row.Id, @"indexes\basic_id.cdx", "ID");
+            IndexBag(@"indexes\basic_name.cdx");
+        }
+    }
+
+    private static void TypedNestedPaths(string dir)
+    {
+        string root = Path.Combine(dir, "nested");
+        foreach (string subdir in new[] { "catalog", "sales" })
+        {
+            string tableDir = Path.Combine(root, subdir);
+            string indexDir = Path.Combine(tableDir, "indexes");
+            Directory.CreateDirectory(indexDir);
+            foreach (string file in new[] { "basic.dbf", "basic.fpt" }) File.Copy(Path.Combine(dir, file), Path.Combine(tableDir, file));
+            foreach (string file in new[] { "basic_id.cdx", "basic_name.cdx" }) File.Copy(Path.Combine(dir, file), Path.Combine(indexDir, file));
+        }
+        var mapping = new NestedMapping();
+        string previous = Directory.GetCurrentDirectory();
+        try
+        {
+            using (var session = DbfSession.Open(root))
+            {
+                Directory.SetCurrentDirectory(Path.GetTempPath());
+                using (var catalog = session.OpenTable(@"catalog\basic.dbf", mapping, "UA866", Cp866))
+                using (var sales = session.OpenTable(Path.Combine(root, "sales", "basic.dbf"), mapping, "UA866", Cp866, mode: DbfOpenMode.SharedReadWrite))
+                {
+                    var salesRecord = sales.Index(mapping.ById).FindFirst(1);
+                    sales.Update(salesRecord.Reference, row => row.Name = "SALES");
+                    Equal("ALICE", catalog.Index(mapping.ById).FindFirst(1).Value.Name, "catalog lookup");
+                    Equal("SALES", sales.Index(mapping.ById).FindFirst(1).Value.Name, "sales lookup");
+                }
+            }
+        }
+        finally { Directory.SetCurrentDirectory(previous); }
+        Console.WriteLine("PASS: nested paths, mapping reuse and current directory independence");
     }
 
     private sealed class ComplexMapping : DbfMapping<ComplexModel>
