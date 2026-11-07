@@ -258,6 +258,16 @@ namespace HarbourDBF.NET
         [DllImport(Constants.DllName, EntryPoint = "_DBF_IS_DELETED", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         private static extern bool _IsRecordDeleted();
 
+        [DllImport(Constants.DllName, EntryPoint = "_DBF_RECORD_UPDATED", CallingConvention = CallingConvention.Cdecl)]
+        private static extern bool _IsRecordUpdated();
+
+        internal static bool IsRecordUpdated()
+        {
+            var updated = _IsRecordUpdated();
+            if (GetLastError(out var error)) throw new HarbourException(error);
+            return updated;
+        }
+
         /// <summary>
         /// Была ли удалена запись
         /// </summary>

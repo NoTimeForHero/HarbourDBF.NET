@@ -56,7 +56,7 @@ namespace HarbourDBF.NET.Beta
         public IEnumerable<object> GetValues(int recNo, IEnumerable<string> keys)
         {
             DbfHarbour.SelectArea(alias);
-            DbfHarbour.GoTo(recNo);
+            PositionForAccess(recNo);
             var values = DbfHarbour.GetValues(keys, DatabaseEncoding).ToArray();
             if (TrimText) Utils.TrimText(values);
             if (IntInsteadLong) Utils.LongToInt(values);
@@ -85,8 +85,16 @@ namespace HarbourDBF.NET.Beta
         public void SetValues(int recNo, Dictionary<string, object> values)
         {
             DbfHarbour.SelectArea(alias);
-            DbfHarbour.GoTo(recNo);
+            PositionForAccess(recNo);
             InternalUniversal.SetValues(_fieldsInfo, values, DatabaseEncoding);
+        }
+
+        private static void PositionForAccess(int recNo)
+        {
+            // Keep a dirty current record in memory: going to it flushes a new
+            // blank record and advances ROWVER. Revisit clean records so shared
+            // sessions can observe changes made by another process.
+            if (DbfHarbour.ActiveRecord != recNo || !DbfHarbour.IsRecordUpdated()) DbfHarbour.GoTo(recNo);
         }
 
         public void RegisterIndex(string field, string path)

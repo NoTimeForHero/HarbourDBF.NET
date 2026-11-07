@@ -2,6 +2,7 @@
 //#include "fileio.ch"
 //#include "hbclass.ch"
 //#include "common.ch"
+#include "dbinfo.ch"
 #define CLRF CHR(13) + CHR(10)
 
 REQUEST DBFCDX, DBFFPT
@@ -183,6 +184,9 @@ RETURN NIL
 
 FUNCTION DBF_IS_DELETED()
 RETURN Deleted()
+
+FUNCTION DBF_RECORD_UPDATED()
+RETURN dbRecordInfo(DBRI_UPDATED)
 
 FUNCTION DBF_GET_ALIAS()
 RETURN Alias()
@@ -520,6 +524,14 @@ HB_EXPORT HB_BOOL _export DBF_IS_DELETED()
 {
   PHB_ITEM pResult = hb_itemDoC( "DBF_IS_DELETED", 0);
   HB_BOOL value = hb_itemGetL( pResult) ;
+  hb_itemRelease( pResult );
+  return value;
+}
+
+HB_EXPORT HB_BOOL _export DBF_RECORD_UPDATED()
+{
+  PHB_ITEM pResult = hb_itemDoC( "DBF_RECORD_UPDATED", 0);
+  HB_BOOL value = hb_itemGetL( pResult );
   hb_itemRelease( pResult );
   return value;
 }
