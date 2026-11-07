@@ -27,6 +27,16 @@ namespace HarbourDBF.NET
             if (GetLastError(out var error)) throw new HarbourException(error);
         }
 
+        [DllImport(Constants.DllName, EntryPoint = "_DBF_USE_READONLY", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+        private static extern IntPtr _UseReadOnly(string databaseName, string alias, bool exclusive, string codepage);
+
+        /// <summary>Открыть таблицу без права записи на уровне Harbour RDD.</summary>
+        public static void UseReadOnly(string databaseName, string alias, bool exclusive = false, string codepage = "")
+        {
+            _UseReadOnly(databaseName, alias, exclusive, codepage);
+            if (GetLastError(out var error)) throw new HarbourException(error);
+        }
+
         [DllImport(Constants.DllName, EntryPoint = "_DBF_SELECT_AREA", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         private static extern IntPtr _SelectArea(string alias);
         /// <summary>

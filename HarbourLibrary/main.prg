@@ -23,12 +23,12 @@ FUNCTION DBF_GET_LAST_ERROR()
   cLastError := NIL
 RETURN cError
 
-FUNCTION DBF_USE(cFile, cAlias, lExclusive, cCodepage)
+FUNCTION DBF_USE(cFile, cAlias, lExclusive, cCodepage, lReadOnly)
   LOCAL cRdd := RddSetDefault()
   cCodepage := IIF(LEN(cCodepage) == 0, "RU866", cCodepage)
   // ? HB_ValToExp({cRdd, cFile, cAlias, lExclusive, cCodepage})
   IF LEN(cFile) != 0
-    DbUseArea(.T., cRdd, cFile, cAlias, !lExclusive, .F., cCodepage)
+    DbUseArea(.T., cRdd, cFile, cAlias, !lExclusive, lReadOnly == .T., cCodepage)
   ELSE
     USE
   ENDIF
@@ -314,6 +314,22 @@ HB_EXPORT void* _export DBF_USE(const char* cDatabaseName, const char* cAlias, B
   hb_itemRelease( pAlias );
   hb_itemRelease( pCodepage );
   hb_itemRelease( pExclusive );
+  return NULL;
+}
+
+HB_EXPORT void* _export DBF_USE_READONLY(const char* cDatabaseName, const char* cAlias, BOOL lExclusive, const char * cCodepage)
+{
+  PHB_ITEM pName = hb_itemPutC( NULL, cDatabaseName );
+  PHB_ITEM pAlias = hb_itemPutC( NULL, cAlias );
+  PHB_ITEM pCodepage = hb_itemPutC( NULL, cCodepage );
+  PHB_ITEM pExclusive = hb_itemPutL( NULL, lExclusive );
+  PHB_ITEM pReadOnly = hb_itemPutL( NULL, TRUE );
+  hb_itemRelease( hb_itemDoC( "DBF_USE", 5, pName, pAlias, pExclusive, pCodepage, pReadOnly) );
+  hb_itemRelease( pName );
+  hb_itemRelease( pAlias );
+  hb_itemRelease( pCodepage );
+  hb_itemRelease( pExclusive );
+  hb_itemRelease( pReadOnly );
   return NULL;
 }
 
