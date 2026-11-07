@@ -42,22 +42,32 @@ namespace HarbourDBF.NET
         {
             this.session = session;
             this.mapping = mapping;
-            this.encoding = encoding ?? Constants.DefaultEncoding;
+            this.encoding = (Encoding)(encoding ?? Constants.DefaultEncoding).Clone();
+            this.encoding.DecoderFallback = DecoderFallback.ExceptionFallback;
             fields = mapping.Freeze();
             string autoOpen = DbfHarbour.Eval("Set(45)");
+            bool opened = false;
+            Exception failure = null;
             try
             {
                 DbfHarbour.Eval("Set(45,.F.)");
                 DbfHarbour.UseReadOnly(path, alias, false, codepage);
-                try { ValidateSchema(InternalUniversal.GetFields()); LoadIndexes(path); }
-                catch (Exception error)
+                opened = true;
+                ValidateSchema(InternalUniversal.GetFields());
+                LoadIndexes(path);
+            }
+            catch (Exception error) { failure = error; }
+            try { DbfHarbour.Eval(autoOpen == "true" ? "Set(45,.T.)" : "Set(45,.F.)"); }
+            catch (Exception error) { failure = failure == null ? error : new AggregateException(failure, error); }
+            if (failure != null)
+            {
+                if (opened)
                 {
                     try { DbfHarbour.CloseArea(alias); }
-                    catch (Exception close) { throw new AggregateException(error, close); }
-                    throw;
+                    catch (Exception close) { failure = new AggregateException(failure, close); }
                 }
+                System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
             }
-            finally { DbfHarbour.Eval(autoOpen == "true" ? "Set(45,.T.)" : "Set(45,.F.)"); }
         }
 
         private void ValidateSchema(FieldType[] schema)
@@ -182,6 +192,7 @@ namespace HarbourDBF.NET
             if (dbfType == "D" || dbfType == "@" || dbfType == "=")
             {
                 string text = value as string;
+                if (text == null) throw new InvalidOperationException("Unexpected DBF date or timestamp value.");
                 if (string.IsNullOrWhiteSpace(text) || text.All(c => c == '0')) return null;
                 return DateTime.ParseExact(text, dbfType == "D" ? "yyyyMMdd" : "yyyyMMddHHmmssfff", CultureInfo.InvariantCulture, DateTimeStyles.None);
             }

@@ -103,6 +103,15 @@ internal static class Program
         }
     }
 
+    private sealed class BadIndexMapping : DbfMapping<TypedModel>
+    {
+        public BadIndexMapping()
+        {
+            Field(x => x.Id, "ID");
+            Index(x => x.Id, "basic_name.cdx", "NAME");
+        }
+    }
+
     private static void TypedRead(string dir)
     {
         var mapping = new TypedMapping();
@@ -118,6 +127,13 @@ internal static class Program
             Equal(3, table.Index(mapping.ByName).FindFirst("CAROL").Value.Id, "typed text seek");
             Require(table.Index(mapping.ByName).FindFirst("CAR") == null, "prefix was accepted as exact key");
             Require(table.Index(mapping.ById).FindFirst(999) == null, "missing index key");
+            bool rejected = false;
+            try { table.Index(new TypedMapping().ById); } catch (ArgumentException) { rejected = true; }
+            Require(rejected, "foreign index descriptor accepted");
+            rejected = false;
+            try { session.OpenTable("basic.dbf", new BadIndexMapping(), "UA866", Cp866); } catch (InvalidOperationException) { rejected = true; }
+            Require(rejected, "mismatched index expression accepted");
+            Equal(1, table.Read(first.Reference).Value.Id, "table usable after failed open");
             var rows = table.Scan().Select(x => { Require(table.Read(first.Reference).Value.Id == 1, "nested read"); return x; }).ToList();
             Equal(3, rows.Count, "typed scan count");
             Require(!ReferenceEquals(rows[0].Value, first.Value), "typed values must be independent");
