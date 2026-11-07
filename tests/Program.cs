@@ -328,6 +328,21 @@ internal static class Program
         });
         otherThread.Start(); otherThread.Join();
         Require(otherThreadOpened, "session could not be opened from another thread");
+        var closingSession = DbfSession.Open(dir);
+        var closingTable = closingSession.OpenTable("basic.dbf", mapping, "UA866", Cp866);
+        var active = closingTable.Scan().GetEnumerator();
+        Require(active.MoveNext(), "scan before session close");
+        var materialized = active.Current;
+        closingSession.Dispose();
+        bool closed = false;
+        try { active.MoveNext(); } catch (ObjectDisposedException) { closed = true; }
+        finally { active.Dispose(); }
+        Require(closed && materialized.Value.Id == 1, "session close did not invalidate cursor or retain data");
+        closed = false;
+        try { closingTable.Read(materialized.Reference); } catch (ObjectDisposedException) { closed = true; }
+        Require(closed, "closed table accepted a reference");
+        closingTable.Dispose();
+        closingSession.Dispose();
         Console.WriteLine("PASS: typed read, scan and concurrent callers");
     }
 
