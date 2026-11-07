@@ -119,13 +119,23 @@ internal static class Program
     private sealed class ComplexMapping : DbfMapping<ComplexModel>
     {
         public DbfIndexMapping<ComplexModel, string> ByName { get; }
+        public DbfIndexMapping<ComplexModel, ComplexKey> ByViewName { get; }
         public ComplexMapping()
         {
             Field(x => x.Id, "ID");
             Field(x => x.Name, "NAME").TrimEnd();
             Field(x => x.View, "VIEW");
             ByName = Index(x => x.Name, "complex.cdx", "NAME", DbfKeyFormat.AllTrim().ThenPadRight(20).Upper());
+            ByViewName = CompositeIndex<ComplexKey>("complex.cdx", "VIEWNAME")
+                .Part(key => key.View, row => row.View, DbfKeyFormat.Str(4))
+                .Part(key => key.Name, row => row.Name, DbfKeyFormat.PadRight(30).Upper());
         }
+    }
+
+    private sealed class ComplexKey
+    {
+        public int View { get; set; }
+        public string Name { get; set; }
     }
 
     private sealed class TypedSpecialMapping : DbfMapping<TypedSpecial>
@@ -535,6 +545,26 @@ internal static class Program
         {
             Equal(3, table.Index(mapping.ByName).EqualTo("  алиса ").Count(), "formatted name search");
             Equal(1, table.Index(mapping.ByName).FindFirst("алиса").Value.Id, "formatted first key");
+            var complex = table.Index(mapping.ByViewName);
+            var key = new ComplexKey { View = 1, Name = "алиса" };
+            Equal(2, complex.EqualTo(key).Count(), "composite duplicate keys");
+            Equal(1, complex.FindFirst(key).Value.Id, "composite first key");
+            Equal(2, complex.FindLast(key).Value.Id, "composite last key");
+            Require(complex.FindFirst(new ComplexKey { View = 3, Name = "алиса" }) == null, "missing composite key");
+            Require(mapping.ByViewName.HarbourExpression == "STR(VIEW,4,0)+UPPER(PADR(NAME,30))", "composite expression");
+            bool overflowKey = false;
+            try { complex.FindFirst(new ComplexKey { View = 10000, Name = "алиса" }); } catch (InvalidOperationException) { overflowKey = true; }
+            Require(overflowKey, "composite STR overflow accepted");
+            bool encodingKey = false;
+            try { complex.FindFirst(new ComplexKey { View = 1, Name = "🙂" }); } catch (EncoderFallbackException) { encodingKey = true; }
+            Require(encodingKey, "unrepresentable composite key accepted");
+            using (var first = complex.EqualTo(key).GetEnumerator())
+            using (var second = complex.EqualTo(key).GetEnumerator())
+            {
+                Require(first.MoveNext() && second.MoveNext(), "composite cursor start");
+                Require(table.Index(mapping.ByName).FindFirst("борис") != null && first.MoveNext() && second.MoveNext(), "composite nested search");
+                Equal(first.Current.RecordNumber, second.Current.RecordNumber, "composite cursor independence");
+            }
             bool badKey = false;
             try { table.Index(mapping.ByName).FindFirst(new string('X', 21)); } catch (InvalidOperationException) { badKey = true; }
             Require(badKey, "formatted key truncation accepted");

@@ -60,6 +60,30 @@ namespace HarbourDBF.NET
 
         internal IReadOnlyList<DbfIndexDefinition> Indexes => indexes.AsReadOnly();
 
+        protected DbfIndexMapping<T, TKey> CompositeIndex<TKey>(string file, string tag)
+        {
+            EnsureMutable();
+            if (string.IsNullOrWhiteSpace(file)) throw new ArgumentException("An index file is required.", nameof(file));
+            if (string.IsNullOrWhiteSpace(tag)) throw new ArgumentException("An index tag is required.", nameof(tag));
+            foreach (var existing in indexes)
+                if (string.Equals(existing.Tag, tag, StringComparison.OrdinalIgnoreCase)) throw new ArgumentException("Index tag names must be unique in a mapping.", nameof(tag));
+            var definition = new DbfIndexMapping<T, TKey>(this, file, tag);
+            indexes.Add(definition);
+            return definition;
+        }
+
+        internal void CheckMutable() => EnsureMutable();
+
+        internal DbfFieldMapping FindField<TValue>(Expression<Func<T, TValue>> field)
+        {
+            var member = field.Body as MemberExpression;
+            var property = member?.Member as PropertyInfo;
+            if (property == null || member.Expression != field.Parameters[0]) throw new ArgumentException("Select a mapped property.", nameof(field));
+            var mapped = fields.Find(item => item.Property == property);
+            if (mapped == null) throw new ArgumentException("The indexed property must be mapped first.", nameof(field));
+            return mapped;
+        }
+
         /// <summary>Объявляет сопровождаемый индексный файл без поискового свойства.</summary>
         protected void IndexBag(string file)
         {

@@ -134,13 +134,10 @@ namespace HarbourDBF.NET
                     if (!string.Equals((string)data[0], index.Tag, StringComparison.OrdinalIgnoreCase)) continue;
                     if (match != 0) throw new InvalidOperationException("Duplicate index tag: " + index.Tag);
                     string bag = Path.GetFileNameWithoutExtension(DbfPaths.Index(tablePath, index.File));
-                    var schema = schemaFields[index.Field.Name];
                     if (!string.Equals((string)data[1], bag, StringComparison.OrdinalIgnoreCase) ||
                         !string.Equals(RemoveWhitespace((string)data[2]), RemoveWhitespace(index.HarbourExpression), StringComparison.OrdinalIgnoreCase) ||
                         (bool)data[3] || !string.IsNullOrWhiteSpace((string)data[4]) || (bool)data[5] ||
-                        !(index.Field.Property.PropertyType == typeof(int) && schema.Type == "N" && schema.Point == 0 ||
-                          index.Field.Property.PropertyType == typeof(string) && schema.Type == "C" && encoding.IsSingleByte) ||
-                        (index.Format != null && (!encoding.IsSingleByte || !index.Format.Width.HasValue)))
+                        !IsSupportedIndex(index))
                         throw new InvalidOperationException("Unsupported or mismatched index tag: " + index.Tag);
                     match = order;
                 }
@@ -150,6 +147,23 @@ namespace HarbourDBF.NET
         }
 
         private static string RemoveWhitespace(string value) => new string(value.Where(c => !char.IsWhiteSpace(c)).ToArray());
+
+        private bool IsSupportedIndex(DbfIndexDefinition index)
+        {
+            if (index.IsComposite)
+                return encoding.IsSingleByte && index.Parts.Count > 0 &&
+                    index.Parts.Sum(part => part.Format.Width.Value) <= 254 &&
+                    index.Parts.All(part => IsSupportedIndexField(part.Field, part.Format));
+            return IsSupportedIndexField(index.Field, index.Format);
+        }
+
+        private bool IsSupportedIndexField(DbfFieldMapping field, DbfKeyFormat format)
+        {
+            var schema = schemaFields[field.Name];
+            bool fieldSupported = field.Property.PropertyType == typeof(int) && schema.Type == "N" && schema.Point == 0 ||
+                field.Property.PropertyType == typeof(string) && schema.Type == "C" && encoding.IsSingleByte;
+            return fieldSupported && (format == null || encoding.IsSingleByte && format.Width.HasValue);
+        }
 
         public DbfIndex<T, TKey> Index<TKey>(DbfIndexMapping<T, TKey> descriptor)
         {
@@ -180,6 +194,15 @@ namespace HarbourDBF.NET
 
         private bool SeekKey<TKey>(DbfIndexMapping<T, TKey> descriptor, TKey key, bool last)
         {
+            if (descriptor.IsComposite)
+            {
+                if ((object)key == null) throw new ArgumentNullException(nameof(key));
+                var formattedParts = descriptor.Parts.Select(part => part.Format.Format(part.Get(key), encoding)).ToArray();
+                for (int i = 0; i < formattedParts.Length; i++)
+                    if (encoding.GetByteCount(formattedParts[i]) != descriptor.Parts[i].Format.Width.Value)
+                        throw new InvalidOperationException("Formatted key part has an unexpected width.");
+                return DbfHarbour.Indexes.Seek(string.Concat(formattedParts), false, last, encoding);
+            }
             if (descriptor.Format != null)
             {
                 string formatted = descriptor.Format.Format(key, encoding);
