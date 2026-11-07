@@ -157,6 +157,9 @@ FUNCTION DBF_INDEX_SEEK_TEMPORAL(cKey, lTimestamp, lSoftSeek, lFindLast)
   ENDIF
 RETURN DbSeek(xKey, lSoftSeek, lFindLast)
 
+FUNCTION DBF_INDEX_SEEK_LOGICAL(lKey, lSoftSeek, lFindLast)
+RETURN DbSeek(lKey, lSoftSeek, lFindLast)
+
 FUNCTION DBF_ORD_KEY_COUNT()
 RETURN OrdKeyCount()
 
@@ -460,6 +463,20 @@ HB_EXPORT HB_BOOL _export DBF_INDEX_SEEK_TEMPORAL(const char * key, HB_BOOL time
   HB_BOOL value = hb_itemGetL( pResult );
   hb_itemRelease( pKey );
   hb_itemRelease( pTimestamp );
+  hb_itemRelease( pSoft );
+  hb_itemRelease( pLast );
+  hb_itemRelease( pResult );
+  return value;
+}
+
+HB_EXPORT HB_BOOL _export DBF_INDEX_SEEK_LOGICAL(HB_BOOL key, HB_BOOL softSeek, HB_BOOL findLast)
+{
+  PHB_ITEM pKey = hb_itemPutL( NULL, key );
+  PHB_ITEM pSoft = hb_itemPutL( NULL, softSeek );
+  PHB_ITEM pLast = hb_itemPutL( NULL, findLast );
+  PHB_ITEM pResult = hb_itemDoC( "DBF_INDEX_SEEK_LOGICAL", 3, pKey, pSoft, pLast );
+  HB_BOOL value = hb_itemGetL( pResult );
+  hb_itemRelease( pKey );
   hb_itemRelease( pSoft );
   hb_itemRelease( pLast );
   hb_itemRelease( pResult );

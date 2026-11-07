@@ -355,6 +355,17 @@ namespace HarbourDBF.NET
                 return found;
             }
 
+            [DllImport(Constants.DllName, EntryPoint = "_DBF_INDEX_SEEK_LOGICAL", CallingConvention = CallingConvention.Cdecl)]
+            private static extern bool _SeekLogical(bool key, bool softSeek, bool findLast);
+
+            /// <summary>Поиск логического ключа индекса.</summary>
+            public static bool Seek(bool key, bool softSeek = false, bool findLast = false)
+            {
+                var found = _SeekLogical(key, softSeek, findLast);
+                if (GetLastError(out var error)) throw new HarbourException(error);
+                return found;
+            }
+
             /// <summary>
             /// Создание нового индекса в памяти
             /// </summary>
