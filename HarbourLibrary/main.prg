@@ -5,6 +5,10 @@
 #define CLRF CHR(13) + CHR(10)
 
 REQUEST DBFCDX, DBFFPT
+// CDX expressions are compiled at runtime, so their functions must be linked
+// even when no static Harbour code calls them directly.
+REQUEST PADR, LEFT, UPPER, DTOS
+REQUEST HB_CODEPAGE_UA866
 
 STATIC cLastError := NIL
 

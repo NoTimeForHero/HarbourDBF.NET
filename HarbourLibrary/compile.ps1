@@ -1,20 +1,14 @@
-$oldLocation = Get-Location
-# Переходим в папку где лежит PS1 скрипт
-Set-Location -Path $PSScriptRoot
+param(
+    [string]$Hbmk2 = 'hbmk2',
+    [string]$Compiler = 'bcc'
+)
 
-$library="hbdbf.dll"
-
-if (Test-Path $library) {
-    Write-Host "Removing old library: $library"
-    Remove-Item $library
+$ErrorActionPreference = 'Stop'
+Push-Location $PSScriptRoot
+try {
+    & $Hbmk2 "-comp=$Compiler" main.hbp
+    if ($LASTEXITCODE -ne 0) { throw "hbmk2 failed with exit code $LASTEXITCODE" }
+    if (-not (Test-Path -LiteralPath 'hbdbf.dll' -PathType Leaf)) { throw 'hbmk2 did not produce hbdbf.dll' }
+} finally {
+    Pop-Location
 }
-
-Write-Host "Building path: $pwd"
-& C:\Harbour3\bin\hbmk2 -comp=bcc main.hbp
-
-if (-Not(Test-Path $library)) {
-    Write-Error "Build failed!"
-    exit 1
-}
-
-Set-Location -Path $oldLocation
