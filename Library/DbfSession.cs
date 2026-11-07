@@ -50,9 +50,10 @@ namespace HarbourDBF.NET
             if (deletedRecords != DbfDeletedRecords.Exclude && deletedRecords != DbfDeletedRecords.Include)
                 throw new ArgumentOutOfRangeException(nameof(deletedRecords));
             if (!Enum.IsDefined(typeof(DbfOpenMode), mode)) throw new ArgumentOutOfRangeException(nameof(mode));
+            codepage = DbfCodepage.Normalize(codepage);
             string resolved = DbfPaths.Table(Root, path);
             if (!File.Exists(resolved)) throw new FileNotFoundException("DBF file not found.", resolved);
-            var table = new DbfTable<T>(this, resolved, mapping, codepage, encoding, deletedRecords, mode);
+            var table = DbfCodepage.Run(codepage, () => new DbfTable<T>(this, resolved, mapping, codepage, encoding, deletedRecords, mode));
             tables.Add(table);
             return table;
         }

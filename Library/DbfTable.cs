@@ -38,6 +38,7 @@ namespace HarbourDBF.NET
         private readonly string alias = "A" + Guid.NewGuid().ToString("N");
         private readonly IReadOnlyList<DbfFieldMapping> fields;
         private readonly Encoding encoding;
+        private readonly string codepage;
         private readonly DbfMapping<T> mapping;
         private readonly DbfDeletedRecords deletedRecords;
         private readonly bool writable;
@@ -51,6 +52,7 @@ namespace HarbourDBF.NET
         {
             this.session = session;
             this.mapping = mapping;
+            this.codepage = codepage;
             this.deletedRecords = deletedRecords;
             writable = mode == DbfOpenMode.SharedReadWrite || mode == DbfOpenMode.ExclusiveReadWrite;
             shared = mode == DbfOpenMode.SharedReadOnly || mode == DbfOpenMode.SharedReadWrite;
@@ -106,6 +108,8 @@ namespace HarbourDBF.NET
 
         private readonly Dictionary<string, string> fieldTypes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
+        private TResult InCodepage<TResult>(Func<TResult> action) => DbfRuntime.Invoke(() => DbfCodepage.Run(codepage, action));
+
         private void LoadIndexes(string tablePath)
         {
             var loaded = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -154,8 +158,10 @@ namespace HarbourDBF.NET
         }
 
         internal DbfRecord<T> Find<TKey>(DbfIndexMapping<T, TKey> descriptor, TKey key, bool last)
+            => InCodepage(() => FindCore(descriptor, key, last));
+
+        private DbfRecord<T> FindCore<TKey>(DbfIndexMapping<T, TKey> descriptor, TKey key, bool last)
         {
-            if (!DbfRuntime.IsExecutorThread) return DbfRuntime.Invoke(() => Find(descriptor, key, last));
             Check();
             DbfHarbour.SelectArea(alias);
             DbfHarbour.Indexes.Select(orders[descriptor]);
@@ -190,7 +196,7 @@ namespace HarbourDBF.NET
             while (true)
             {
                 DbfRecord<T> next = null;
-                bool found = DbfRuntime.Invoke(() => NextEqual(descriptor, key, ref previous, out next));
+                bool found = InCodepage(() => NextEqual(descriptor, key, ref previous, out next));
                 if (!found) yield break;
                 yield return next;
             }
@@ -237,7 +243,7 @@ namespace HarbourDBF.NET
             while (true)
             {
                 DbfRecord<T> next = null;
-                bool found = DbfRuntime.Invoke(() => NextIndex(descriptor, ref previous, out next));
+                bool found = InCodepage(() => NextIndex(descriptor, ref previous, out next));
                 if (!found) yield break;
                 yield return next;
             }
@@ -275,8 +281,10 @@ namespace HarbourDBF.NET
         private void Check() { session.Check(); if (disposed) throw new ObjectDisposedException(nameof(DbfTable<T>)); }
 
         public DbfRecord<T> ReadAt(long recordNumber)
+            => InCodepage(() => ReadAtCore(recordNumber));
+
+        private DbfRecord<T> ReadAtCore(long recordNumber)
         {
-            if (!DbfRuntime.IsExecutorThread) return DbfRuntime.Invoke(() => ReadAt(recordNumber));
             Check();
             if (recordNumber < 1 || recordNumber > int.MaxValue) throw new ArgumentOutOfRangeException(nameof(recordNumber));
             DbfHarbour.SelectArea(alias);
@@ -322,8 +330,10 @@ namespace HarbourDBF.NET
         }
 
         public DbfRecord<T> Read(DbfRecordRef<T> reference)
+            => InCodepage(() => ReadCore(reference));
+
+        private DbfRecord<T> ReadCore(DbfRecordRef<T> reference)
         {
-            if (!DbfRuntime.IsExecutorThread) return DbfRuntime.Invoke(() => Read(reference));
             Check();
             if (reference == null) throw new ArgumentNullException(nameof(reference));
             if (!ReferenceEquals(reference.Owner, this)) throw new ArgumentException("The reference belongs to another table.", nameof(reference));
@@ -335,8 +345,10 @@ namespace HarbourDBF.NET
         public void Recall(DbfRecordRef<T> reference) => SetDeleted(reference, false);
 
         public DbfRecord<T> Update(DbfRecordRef<T> reference, Action<T> update)
+            => InCodepage(() => UpdateCore(reference, update));
+
+        private DbfRecord<T> UpdateCore(DbfRecordRef<T> reference, Action<T> update)
         {
-            if (!DbfRuntime.IsExecutorThread) return DbfRuntime.Invoke(() => Update(reference, update));
             Check();
             if (!writable) throw new InvalidOperationException("The table is read-only.");
             if (reference == null) throw new ArgumentNullException(nameof(reference));
@@ -390,8 +402,10 @@ namespace HarbourDBF.NET
         }
 
         public DbfRecord<T> Insert(T value, bool strict = false)
+            => InCodepage(() => InsertCore(value, strict));
+
+        private DbfRecord<T> InsertCore(T value, bool strict)
         {
-            if (!DbfRuntime.IsExecutorThread) return DbfRuntime.Invoke(() => Insert(value, strict));
             Check();
             if (!writable) throw new InvalidOperationException("The table is read-only.");
             if (value == null) throw new ArgumentNullException(nameof(value));
@@ -469,8 +483,10 @@ namespace HarbourDBF.NET
         }
 
         private void SetDeleted(DbfRecordRef<T> reference, bool deleted)
+            => InCodepage(() => { SetDeletedCore(reference, deleted); return true; });
+
+        private void SetDeletedCore(DbfRecordRef<T> reference, bool deleted)
         {
-            if (!DbfRuntime.IsExecutorThread) { DbfRuntime.Invoke(() => SetDeleted(reference, deleted)); return; }
             Check();
             if (!writable) throw new InvalidOperationException("The table is read-only.");
             if (reference == null) throw new ArgumentNullException(nameof(reference));
@@ -500,7 +516,7 @@ namespace HarbourDBF.NET
             for (long number = 1; ; number++)
             {
                 DbfRecord<T> record = null;
-                bool exists = DbfRuntime.Invoke(() =>
+                bool exists = InCodepage(() =>
                 {
                     Check();
                     DbfHarbour.SelectArea(alias);
@@ -514,8 +530,10 @@ namespace HarbourDBF.NET
         }
 
         public void Dispose()
+            => InCodepage(() => { DisposeCore(); return true; });
+
+        private void DisposeCore()
         {
-            if (!DbfRuntime.IsExecutorThread) { DbfRuntime.Invoke(Dispose); return; }
             if (disposed) return;
             session.Check();
             disposed = true;

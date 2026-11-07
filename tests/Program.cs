@@ -47,6 +47,7 @@ internal static class Program
                 TypedIndexEnumeration(working);
                 TypedUpdate(working);
                 TypedLockContention(working);
+                TypedExpressionIndexMaintenance(working);
                 VerifyTypedWithHarbour(working);
                 WriteBasic(working);
                 SpecialTypes(working);
@@ -104,6 +105,26 @@ internal static class Program
         public long Version { get; set; }
         public DateTime? Stamp { get; set; }
         public string Name { get; set; }
+    }
+
+    private sealed class ComplexModel
+    {
+        private string name;
+        public static string ObservedCodepage;
+        public int Id { get; set; }
+        public string Name { get { ObservedCodepage = DbfHarbour.Eval("hb_cdpSelect()"); return name; } set { name = value; } }
+        public int View { get; set; }
+    }
+
+    private sealed class ComplexMapping : DbfMapping<ComplexModel>
+    {
+        public ComplexMapping()
+        {
+            Field(x => x.Id, "ID");
+            Field(x => x.Name, "NAME").TrimEnd();
+            Field(x => x.View, "VIEW");
+            IndexBag("complex.cdx");
+        }
     }
 
     private sealed class TypedSpecialMapping : DbfMapping<TypedSpecial>
@@ -497,6 +518,51 @@ internal static class Program
             Require(process.ExitCode == 0, "independent Harbour verifier failed with exit code " + process.ExitCode);
         }
         Console.WriteLine("PASS: independent Harbour verifier");
+    }
+
+    private static void TypedExpressionIndexMaintenance(string dir)
+    {
+        string generator = Environment.GetEnvironmentVariable("HARBOUR_COMPLEX_GENERATOR");
+        if (string.IsNullOrEmpty(generator)) return;
+        string copy = Path.Combine(dir, "typed-complex");
+        Directory.CreateDirectory(copy);
+        RunComplexHelper(generator, copy, "");
+        string originalCodepage = DbfHarbour.Eval("hb_cdpSelect()");
+        using (var session = DbfSession.Open(copy))
+        using (var table = session.OpenTable("complex.dbf", new ComplexMapping(), "UA866", Cp866, mode: DbfOpenMode.SharedReadWrite))
+        {
+            table.Insert(new ComplexModel { Id = 5, Name = "алиса", View = 3 }, strict: true);
+            Equal("\"UA866\"", ComplexModel.ObservedCodepage, "codepage during typed operation");
+            table.Update(table.ReadAt(1).Reference, row => row.Name = "борис");
+            bool rejected = false;
+            try { table.Insert(new ComplexModel { Id = 6, Name = "🙂", View = 1 }); } catch (EncoderFallbackException) { rejected = true; }
+            Require(rejected, "invalid expression index input accepted");
+            Equal(originalCodepage, DbfHarbour.Eval("hb_cdpSelect()"), "VM codepage restored after failure");
+            rejected = false;
+            try { session.OpenTable("complex.dbf", new ComplexMapping(), "UNKNOWN_CDP", Cp866); }
+            catch (HarbourException) { rejected = true; }
+            Require(rejected, "unknown VM codepage accepted");
+            Equal(originalCodepage, DbfHarbour.Eval("hb_cdpSelect()"), "VM codepage restored after invalid codepage");
+        }
+        Equal(originalCodepage, DbfHarbour.Eval("hb_cdpSelect()"), "VM codepage restored");
+        RunComplexHelper(generator, copy, "verify");
+        Console.WriteLine("PASS: expression index maintenance with table codepage");
+    }
+
+    private static void RunComplexHelper(string helper, string dir, string mode)
+    {
+        using (var process = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+        {
+            FileName = helper,
+            Arguments = "\"" + dir + "\" " + mode,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        }))
+        {
+            Require(process != null, "complex fixture helper did not start");
+            if (!process.WaitForExit(10000)) { process.Kill(); process.WaitForExit(); throw new Exception("Complex fixture helper timed out"); }
+            Require(process.ExitCode == 0, "complex fixture helper failed with exit code " + process.ExitCode);
+        }
     }
 
     private static void TypedLockContention(string dir)

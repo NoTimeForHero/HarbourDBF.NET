@@ -1,16 +1,13 @@
 /* Generate and independently verify a new synthetic multi-tag CDX fixture. */
 REQUEST DBFCDX, HB_CODEPAGE_UA866
 
-PROCEDURE Main( cDir )
+PROCEDURE Main( cDir, cMode )
    LOCAL cDbf, cCdx, cLower, cUpper, cOther, oError, cStage := "uppercase"
    IF Empty( cDir ) .OR. ! hb_DirExists( cDir )
       OutErr( "Provide an existing output directory" + hb_eol() ); ErrorLevel( 2 ); RETURN
    ENDIF
    cDir := hb_DirSepAdd( cDir )
    cDbf := cDir + "complex.dbf"; cCdx := cDir + "complex.cdx"
-   IF hb_FileExists( cDbf ) .OR. hb_FileExists( cCdx )
-      OutErr( "Refusing to overwrite fixture" + hb_eol() ); ErrorLevel( 2 ); RETURN
-   ENDIF
    cLower := Chr(160)+Chr(171)+Chr(168)+Chr(225)+Chr(160)
    cUpper := Chr(128)+Chr(139)+Chr(136)+Chr(145)+Chr(128)
    cOther := Chr(129)+Chr(142)+Chr(144)+Chr(136)+Chr(145)
@@ -19,6 +16,20 @@ PROCEDURE Main( cDir )
    ErrorBlock( {|e| Break( e ) } )
    BEGIN SEQUENCE
       Check( Upper( cLower ) == cUpper, "UA866 uppercase" )
+      IF cMode == "verify"
+         SET DELETED OFF
+         dbUseArea( .T., "DBFCDX", cDbf, "COMPLEX", .F., .T., "UA866" )
+         OrdListAdd( cCdx )
+         Check( LastRec() == 5, "typed insert count" )
+         OrdSetFocus( "VIEWNAME" )
+         Check( dbSeek( Str(3,4,0)+PadR(cUpper,30) ) .AND. FIELD->ID == 5, "typed insert composite key" )
+         Check( dbSeek( Str(1,4,0)+PadR(cOther,30) ) .AND. FIELD->ID == 1, "typed update composite key" )
+         OrdSetFocus( "NAME" )
+         Check( dbSeek( PadR(cOther,20) ) .AND. FIELD->ID == 1, "typed update uppercase key" )
+         dbCloseArea()
+         OutStd( "PASS: independently verified typed expression indexes" + hb_eol() )
+      ELSE
+      Check( ! hb_FileExists( cDbf ) .AND. ! hb_FileExists( cCdx ), "refusing to overwrite fixture" )
       cStage := "create"
       dbCreate( cDbf, { { "ID", "N", 6, 0 }, { "NAME", "C", 20, 0 }, { "VIEW", "N", 4, 0 } }, "DBFCDX" )
       dbUseArea( .T., "DBFCDX", cDbf, "COMPLEX", .F., .F., "UA866" )
@@ -43,6 +54,7 @@ PROCEDURE Main( cDir )
       OrdSetFocus( "VIEWNAME" ); Check( dbSeek( Str(1,4,0)+PadR(cUpper,30) ) .AND. FIELD->ID == 1, "composite search" )
       dbCloseArea()
       OutStd( "PASS: generated and verified multi-tag fixture" + hb_eol() )
+      ENDIF
    RECOVER USING oError
       OutErr( "Multi-tag fixture failed at " + cStage + ": " + oError:Description + " / " + oError:Operation + hb_eol() )
       ErrorLevel( 4 ); CLOSE ALL
