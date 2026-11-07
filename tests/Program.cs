@@ -39,6 +39,7 @@ internal static class Program
                 DbfHarbour.Eval("Set(11,.F.)");
                 ReadBasic(working);
                 TypedRead(working);
+                TypedDeleted(working);
                 WriteBasic(working);
                 SpecialTypes(working);
             }
@@ -143,6 +144,36 @@ internal static class Program
             Require(wrongThread, "wrong-thread access was accepted");
         }
         Console.WriteLine("PASS: typed read, scan and thread ownership");
+    }
+
+    private static void TypedDeleted(string dir)
+    {
+        string copy = Path.Combine(dir, "typed-deleted");
+        Directory.CreateDirectory(copy);
+        foreach (string file in new[] { "basic.dbf", "basic.fpt", "basic_id.cdx", "basic_name.cdx" })
+            File.Copy(Path.Combine(dir, file), Path.Combine(copy, file));
+        DbfHarbour.Use(Path.Combine(copy, "basic.dbf"), "DELETE_TEST", true, "UA866");
+        try
+        {
+            DbfHarbour.Indexes.Load(Path.Combine(copy, "basic_id.cdx"));
+            DbfHarbour.Indexes.Load(Path.Combine(copy, "basic_name.cdx"));
+            DbfHarbour.GoTo(2);
+            DbfHarbour.Delete();
+            DbfHarbour.Commit();
+        }
+        finally { DbfHarbour.CloseArea("DELETE_TEST"); }
+        var mapping = new TypedMapping();
+        using (var session = DbfSession.Open(copy))
+        using (var table = session.OpenTable("basic.dbf", mapping, "UA866", Cp866))
+        using (var other = session.OpenTable("basic.dbf", mapping, "UA866", Cp866))
+        {
+            Require(table.ReadAt(2) == null && table.Index(mapping.ById).FindFirst(2) == null, "deleted record visible");
+            Equal(2, table.Scan().Count(), "deleted record in scan");
+            bool rejected = false;
+            try { other.Read(table.ReadAt(1).Reference); } catch (ArgumentException) { rejected = true; }
+            Require(rejected, "foreign record reference accepted");
+        }
+        Console.WriteLine("PASS: deleted records and reference ownership");
     }
 
     private sealed class MappingProbe : DbfMapping<MappingModel>

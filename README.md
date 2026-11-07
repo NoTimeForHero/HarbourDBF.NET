@@ -70,6 +70,8 @@ dotnet build tests/LightTests.csproj --no-restore
 
 ## Документация
 
+- [Типизированное чтение DBF](docs/typed-api.md) — первая версия API и её ограничения.
+
 - [Типы полей и представление значений](docs/types.md).
 - [Работа с таблицами, индексами и блокировками](docs/usage.md).
 - [Тестовые данные и запуск проверок](docs/testing.md).
