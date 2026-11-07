@@ -593,6 +593,13 @@ internal static class Program
                 Require(table.Index(mapping.ByName).FindFirst("борис") != null && first.MoveNext() && second.MoveNext(), "composite nested search");
                 Equal(first.Current.RecordNumber, second.Current.RecordNumber, "composite cursor independence");
             }
+            using (var cursor = complex.EqualTo(key).GetEnumerator())
+            {
+                Require(cursor.MoveNext(), "mutable key cursor start");
+                key.View = 2;
+                Require(cursor.MoveNext() && cursor.Current.Value.View == 1, "enumeration key changed mid-scan");
+            }
+            key.View = 1;
             bool badKey = false;
             try { table.Index(mapping.ByName).FindFirst(new string('X', 21)); } catch (InvalidOperationException) { badKey = true; }
             Require(badKey, "formatted key truncation accepted");

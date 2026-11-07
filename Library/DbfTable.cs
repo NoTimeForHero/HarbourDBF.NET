@@ -198,20 +198,20 @@ namespace HarbourDBF.NET
             try
             {
                 DbfHarbour.Eval(deletedRecords == DbfDeletedRecords.Exclude ? "Set(11,.T.)" : "Set(11,.F.)");
-                bool found = SeekKey(descriptor, key, last);
+                bool found = SeekPrepared(PrepareKey(descriptor, key), false, last);
                 return found ? ReadAt(DbfHarbour.ActiveRecord) : null;
             }
             finally { DbfHarbour.Eval(oldDeleted == "true" ? "Set(11,.T.)" : "Set(11,.F.)"); }
         }
 
-        private bool SeekKey<TKey>(DbfIndexMapping<T, TKey> descriptor, TKey key, bool last)
+        private object PrepareKey<TKey>(DbfIndexMapping<T, TKey> descriptor, TKey key)
         {
             if (descriptor.IsSearchKey)
             {
                 if ((object)key == null) throw new ArgumentNullException(nameof(key));
                 string formatted = RunSearchBlock(descriptor, descriptor.SearchArguments(key), false);
                 if (encoding.GetByteCount(formatted) != searchKeyWidths[descriptor]) throw new ArgumentException("SearchKey must return the complete tag key width.", nameof(key));
-                return DbfHarbour.Indexes.Seek(formatted, false, last, encoding);
+                return formatted;
             }
             if (descriptor.IsComposite)
             {
@@ -220,15 +220,15 @@ namespace HarbourDBF.NET
                 for (int i = 0; i < formattedParts.Length; i++)
                     if (encoding.GetByteCount(formattedParts[i]) != descriptor.Parts[i].Format.Width.Value)
                         throw new InvalidOperationException("Formatted key part has an unexpected width.");
-                return DbfHarbour.Indexes.Seek(string.Concat(formattedParts), false, last, encoding);
+                return string.Concat(formattedParts);
             }
             if (descriptor.Format != null)
             {
                 string formatted = descriptor.Format.Format(key, encoding);
                 if (encoding.GetByteCount(formatted) != descriptor.Format.Width.Value) throw new InvalidOperationException("Formatted key has an unexpected width.");
-                return DbfHarbour.Indexes.Seek(formatted, false, last, encoding);
+                return formatted;
             }
-            if (key is int number) return DbfHarbour.Indexes.Seek(number, false, last);
+            if (key is int number) return number;
             if (key is string text)
             {
                 var strict = (Encoding)encoding.Clone();
@@ -236,9 +236,16 @@ namespace HarbourDBF.NET
                 int length = strict.GetByteCount(text);
                 int width = schemaFields[descriptor.Field.Name].Length;
                 if (length > width) throw new ArgumentException("The key exceeds the field width.", nameof(key));
-                return DbfHarbour.Indexes.Seek(text.PadRight(text.Length + width - length), false, last, strict);
+                if (text.IndexOf('\0') >= 0) throw new ArgumentException("A key cannot contain a null character.", nameof(key));
+                return text.PadRight(text.Length + width - length);
             }
             throw new ArgumentException("A non-null index key is required.", nameof(key));
+        }
+
+        private bool SeekPrepared(object key, bool soft, bool last)
+        {
+            if (key is int number) return DbfHarbour.Indexes.Seek(number, soft, last);
+            return DbfHarbour.Indexes.Seek((string)key, soft, last, encoding);
         }
 
         private string RunSearchBlock(DbfIndexDefinition descriptor, object[] arguments, bool validateOnly)
@@ -272,16 +279,17 @@ namespace HarbourDBF.NET
         internal IEnumerable<DbfRecord<T>> EqualTo<TKey>(DbfIndexMapping<T, TKey> descriptor, TKey key)
         {
             int previous = 0;
+            object prepared = null;
             while (true)
             {
                 DbfRecord<T> next = null;
-                bool found = InCodepage(() => NextEqual(descriptor, key, ref previous, out next));
+                bool found = InCodepage(() => NextEqual(descriptor, key, ref prepared, ref previous, out next));
                 if (!found) yield break;
                 yield return next;
             }
         }
 
-        private bool NextEqual<TKey>(DbfIndexMapping<T, TKey> descriptor, TKey key, ref int previous, out DbfRecord<T> next)
+        private bool NextEqual<TKey>(DbfIndexMapping<T, TKey> descriptor, TKey key, ref object prepared, ref int previous, out DbfRecord<T> next)
         {
             while (true)
             {
@@ -295,9 +303,10 @@ namespace HarbourDBF.NET
                     // OrdKeyNo/OrdKeyGoto use physical index positions. Keep deleted
                     // keys in that numbering and apply the visibility policy after positioning.
                     DbfHarbour.Eval("Set(11,.F.)");
-                    if (!SeekKey(descriptor, key, false)) return false;
+                    if (prepared == null) prepared = PrepareKey(descriptor, key);
+                    if (!SeekPrepared(prepared, false, false)) return false;
                     long first = long.Parse(DbfHarbour.Eval("OrdKeyNo()"), CultureInfo.InvariantCulture);
-                    if (!SeekKey(descriptor, key, true)) return false;
+                    if (!SeekPrepared(prepared, false, true)) return false;
                     long last = long.Parse(DbfHarbour.Eval("OrdKeyNo()"), CultureInfo.InvariantCulture);
                     long position = first;
                     if (previous != 0)
