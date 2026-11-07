@@ -430,6 +430,12 @@ internal static class Program
                 try { readOnly.MarkDeleted(readOnly.ReadAt(2).Reference); } catch (InvalidOperationException) { rejected = true; }
                 Require(rejected, "read-only delete accepted");
             }
+            using (var exclusiveReadOnly = session.OpenTable("basic.dbf", mapping, "UA866", Cp866, mode: DbfOpenMode.ExclusiveReadOnly))
+            {
+                bool rejected = false;
+                try { exclusiveReadOnly.Insert(new TypedModel { Name = "NO" }); } catch (InvalidOperationException) { rejected = true; }
+                Require(rejected, "exclusive read-only insert accepted");
+            }
             using (var table = session.OpenTable("basic.dbf", mapping, "UA866", Cp866, mode: DbfOpenMode.SharedReadWrite))
             {
                 var reference = table.ReadAt(2).Reference;
@@ -487,6 +493,9 @@ internal static class Program
             rejected = false;
             try { table.Insert(new TypedModel { Id = 9, Name = "BAD", Amount = 10000000m }); } catch (ArgumentException) { rejected = true; }
             Require(rejected && table.Scan().Count() == 3, "decimal overflow accepted");
+            rejected = false;
+            try { table.Insert(new TypedModel { Id = 9, Name = "BAD", Birth = new DateTime(2000, 1, 2, 12, 0, 0) }); } catch (ArgumentException) { rejected = true; }
+            Require(rejected && table.Scan().Count() == 3, "date time component accepted");
             var added = table.Insert(model);
             Equal(4L, added.RecordNumber, "insert record number");
             Equal("НОВАЯ", added.Value.Name, "insert value");
@@ -515,6 +524,10 @@ internal static class Program
         using (var table = session.OpenTable("special.dbf", new TypedSpecialMapping(), "UA866", Cp866, mode: DbfOpenMode.ExclusiveReadWrite))
         {
             long previousVersion = table.Scan().Max(row => row.Value.Version);
+            bool rejected = false;
+            try { table.Insert(new TypedSpecial { Name = "BAD", Stamp = new DateTime(2020, 1, 1).AddTicks(1) }, strict: true); }
+            catch (ArgumentException) { rejected = true; }
+            Require(rejected && table.Scan().Count() == 3, "sub-millisecond timestamp accepted");
             var input = new TypedSpecial { Id = 999, Version = 999, Changed = new DateTime(2000, 1, 1), Name = "FOUR", Stamp = new DateTime(2020, 1, 2, 3, 4, 5) };
             var result = table.Insert(input, strict: true);
             Equal(previousVersion + 1, result.Value.Version, "exclusive insert version");
@@ -531,6 +544,8 @@ internal static class Program
             long before = table.Scan().Max(row => row.Value.Version);
             var result = table.Insert(new TypedSpecial { Name = "FOUR", Stamp = new DateTime(2020, 1, 2, 3, 4, 5) }, strict: true);
             Equal(before + 2, result.Value.Version, "shared Harbour append version");
+            var empty = table.Insert(new TypedSpecial { Name = "EMPTY", Stamp = null }, strict: true);
+            Require(empty.Value.Stamp == null && table.Read(empty.Reference).Value.Stamp == null, "empty timestamp round trip");
         }
         Console.WriteLine("PASS: typed insert validation and reopened indexes");
     }
