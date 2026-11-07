@@ -7,6 +7,7 @@
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="..\Library\DbfPaths.cs" Link="DbfPaths.cs" />
     <ProjectReference Include="..\Library\HarbourDBF.NET.csproj" />
     <Content Include="fixtures\*" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\HarbourLibrary\hbdbf.dll" Link="hbdbf.dll" CopyToOutputDirectory="PreserveNewest" Condition="Exists('..\HarbourLibrary\hbdbf.dll')" />

@@ -16,6 +16,8 @@ internal static class Program
 
     private static int Main()
     {
+        try { PathResolution(); }
+        catch (Exception error) { Console.Error.WriteLine("FAIL: " + error); return 1; }
         if (IntPtr.Size != 4) { Console.Error.WriteLine("The current native DLL requires an x86 process."); return 1; }
         if (!File.Exists(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "hbdbf.dll"))) { Console.Error.WriteLine("Build HarbourLibrary/hbdbf.dll, then rebuild LightTests."); return 1; }
         string fixtures = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "fixtures");
@@ -50,6 +52,24 @@ internal static class Program
         }
         catch (Exception error) { Console.Error.WriteLine("FAIL: " + error); return 1; }
         finally { if (Directory.Exists(working)) Directory.Delete(working, true); }
+    }
+
+    private static void PathResolution()
+    {
+        string root = DbfPaths.Root(@"D:\SampleData");
+        string table = DbfPaths.Table(root, @"catalog\..\sales\orders.dbf");
+        Equal(@"D:\SampleData\sales\orders.dbf", table, "relative DBF path");
+        Equal(@"D:\SampleData\sales\indexes\orders.cdx", DbfPaths.Index(table, @"indexes\orders.cdx"), "relative CDX path");
+        Equal(@"D:\Archive\orders.dbf", DbfPaths.Table(root, @"D:\Archive\orders.dbf"), "absolute DBF path");
+        Equal(@"D:\Shared\orders.cdx", DbfPaths.Index(table, @"D:\Shared\orders.cdx"), "absolute CDX path");
+        Equal(@"\\server\share\orders.dbf", DbfPaths.Table(root, @"\\server\share\orders.dbf"), "UNC path");
+        foreach (string invalid in new[] { @"D:orders.dbf", @"\orders.dbf", @"\\server" })
+        {
+            bool rejected = false;
+            try { DbfPaths.Table(root, invalid); } catch (ArgumentException) { rejected = true; }
+            Require(rejected, "ambiguous path accepted: " + invalid);
+        }
+        Console.WriteLine("PASS: DBF and CDX path resolution");
     }
 
     private static void ReadBasic(string dir)
