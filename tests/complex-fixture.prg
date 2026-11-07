@@ -61,6 +61,8 @@ PROCEDURE Main( cDir, cMode )
       cStage := "index date"
       dbGoTop()
       INDEX ON DTOS(BIRTH) TAG DATEKEY TO ( cCdx ) ADDITIVE
+      dbGoTop()
+      INDEX ON DTOS(BIRTH)+STR(VIEW,4,0) TAG DATEVIEW TO ( cCdx ) ADDITIVE
       cStage := "unsupported indexes"
       dbGoTop()
       INDEX ON ID TAG BADFOR TO ( cCdx ) FOR VIEW=1 ADDITIVE
@@ -71,7 +73,7 @@ PROCEDURE Main( cDir, cMode )
       dbCloseArea()
       dbUseArea( .T., "DBFCDX", cDbf, "COMPLEX", .F., .T., "UA866" )
       OrdListAdd( cCdx )
-      Check( OrdCount() == 8, "multi-tag count" )
+      Check( OrdCount() == 9, "multi-tag count" )
       OrdSetFocus( "NAME" ); Check( dbSeek( cUpper ) .AND. FIELD->ID == 1, "uppercase search" )
       OrdSetFocus( "VIEWNAME" ); Check( dbSeek( Str(1,4,0)+PadR(cUpper,30) ) .AND. FIELD->ID == 1, "composite search" )
       OrdSetFocus( "CATEGORY" ); Check( dbSeek( "A"+PadR(cUpper,30) ) .AND. FIELD->ID == 1, "category search" )

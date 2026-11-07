@@ -192,6 +192,7 @@ internal static class Program
         public DbfIndexMapping<ComplexModel, ComplexKey> ByViewName { get; }
         public DbfIndexMapping<ComplexModel, ComplexKey> ByCategory { get; }
         public DbfIndexMapping<ComplexModel, DateTime?> ByDate { get; }
+        public DbfIndexMapping<ComplexModel, DateViewKey> ByDateView { get; }
         public ComplexMapping()
         {
             Field(x => x.Id, "ID");
@@ -205,6 +206,9 @@ internal static class Program
             ByCategory = Index<ComplexKey>("complex.cdx", "CATEGORY")
                 .SearchKey("{|view, name| IIF(view = 1, 'A', 'B') + UPPER(PADR(name,30)) }", key => new object[] { key.View, key.Name });
             ByDate = Index(x => x.Birth, "complex.cdx", "DATEKEY", DbfKeyFormat.Dtos());
+            ByDateView = CompositeIndex<DateViewKey>("complex.cdx", "DATEVIEW")
+                .Part(key => key.Date, row => row.Birth, DbfKeyFormat.Dtos())
+                .Part(key => key.View, row => row.View, DbfKeyFormat.Str(4));
         }
     }
 
@@ -212,6 +216,12 @@ internal static class Program
     {
         public int View { get; set; }
         public string Name { get; set; }
+    }
+
+    private sealed class DateViewKey
+    {
+        public DateTime? Date { get; set; }
+        public int View { get; set; }
     }
 
     private sealed class ShortBlockMapping : DbfMapping<ComplexModel>
@@ -695,6 +705,9 @@ internal static class Program
             }
             Equal(3, table.Index(mapping.ByName).EqualTo("  алиса ").Count(), "formatted name search");
             Equal(2, table.Index(mapping.ByDate).EqualTo(new DateTime(2000, 1, 2)).Count(), "DTOS date search");
+            var dateView = table.Index(mapping.ByDateView);
+            Equal(2, dateView.EqualTo(new DateViewKey { Date = new DateTime(2000, 1, 2), View = 1 }).Count(), "DTOS composite key");
+            Equal(2, dateView.Prefix(key => key.Date, new DateTime(2000, 1, 2)).Scan().Count(), "DTOS leading prefix");
             bool badDate = false;
             try { table.Index(mapping.ByDate).FindFirst(new DateTime(2000, 1, 2, 12, 0, 0)); } catch (ArgumentException) { badDate = true; }
             Require(badDate, "date key silently discarded time");
