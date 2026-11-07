@@ -33,9 +33,12 @@ PROCEDURE Main( cDir, cMode )
          dbGoTo( 2 ); Check( FIELD->AMOUNT == -99999999999.98 .AND. FIELD->RATE == -99999999.99998, "negative numeric boundary" )
          dbGoTo( 4 ); Check( FIELD->AMOUNT == 0.01 .AND. FIELD->RATE == 0.00001, "small numeric values" )
          dbCloseArea()
+         dbUseArea( .T., "DBFCDX", cDir + "wide.dbf", "WIDE", .F., .T., "UA866" )
+         dbGoTo( 1 ); Check( FIELD->NUM == 9007199254740991, "safe integer boundary" )
+         dbCloseArea()
          OutStd( "PASS: independently verified typed expression indexes" + hb_eol() )
       ELSE
-      Check( ! hb_FileExists( cDbf ) .AND. ! hb_FileExists( cCdx ) .AND. ! hb_FileExists( cDir + "numeric.dbf" ), "refusing to overwrite fixture" )
+      Check( ! hb_FileExists( cDbf ) .AND. ! hb_FileExists( cCdx ) .AND. ! hb_FileExists( cDir + "numeric.dbf" ) .AND. ! hb_FileExists( cDir + "wide.dbf" ), "refusing to overwrite fixture" )
       cStage := "create"
       dbCreate( cDbf, { { "ID", "N", 6, 0 }, { "NAME", "C", 20, 0 }, { "VIEW", "N", 4, 0 }, { "BIRTH", "D", 8, 0 } }, "DBFCDX" )
       dbUseArea( .T., "DBFCDX", cDbf, "COMPLEX", .F., .F., "UA866" )
@@ -72,6 +75,10 @@ PROCEDURE Main( cDir, cMode )
       APPEND BLANK; REPLACE ID WITH 1, AMOUNT WITH 999999999999.99, RATE WITH 999999999.99999
       APPEND BLANK; REPLACE ID WITH 2, AMOUNT WITH -99999999999.99, RATE WITH -99999999.99999
       APPEND BLANK; REPLACE ID WITH 3, AMOUNT WITH 0.01, RATE WITH 0.00001
+      dbCloseArea()
+      dbCreate( cDir + "wide.dbf", { { "NUM", "N", 20, 0 } }, "DBFCDX" )
+      dbUseArea( .T., "DBFCDX", cDir + "wide.dbf", "WIDE", .F., .F., "UA866" )
+      APPEND BLANK; REPLACE NUM WITH 9007199254740993
       dbCloseArea()
       OutStd( "PASS: generated and verified multi-tag fixture" + hb_eol() )
       ENDIF

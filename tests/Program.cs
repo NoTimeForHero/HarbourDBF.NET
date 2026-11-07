@@ -136,6 +136,12 @@ internal static class Program
         }
     }
 
+    private sealed class WideModel { public long Number { get; set; } }
+    private sealed class WideMapping : DbfMapping<WideModel>
+    {
+        public WideMapping() { Field(row => row.Number, "NUM"); }
+    }
+
     private sealed class NestedMapping : DbfMapping<TypedModel>
     {
         public DbfIndexMapping<TypedModel, int> ById { get; }
@@ -753,6 +759,16 @@ internal static class Program
             numeric.Update(first.Reference, row => { row.Amount = 999999999999.98m; row.Rate = 999999999.99998m; });
             numeric.Update(second.Reference, row => { row.Amount = -99999999999.98m; row.Rate = -99999999.99998m; });
             numeric.Insert(new NumericModel { Id = 4, Amount = 0.01m, Rate = 0.00001m }, strict: true);
+        }
+        using (var session = DbfSession.Open(copy))
+        using (var wide = session.OpenTable("wide.dbf", new WideMapping(), "UA866", Cp866, mode: DbfOpenMode.SharedReadWrite))
+        {
+            var first = wide.ReadAt(1);
+            Equal(9007199254740993L, first.Value.Number, "wide integer round trip");
+            bool rejected = false;
+            try { wide.Update(first.Reference, row => row.Number = long.MaxValue); } catch (ArgumentException) { rejected = true; }
+            Require(rejected && wide.Read(first.Reference).Value.Number == 9007199254740993L, "unsafe integer write modified record");
+            Equal(9007199254740991L, wide.Update(first.Reference, row => row.Number = 9007199254740991L).Value.Number, "safe integer boundary");
         }
         Equal(originalCodepage, DbfHarbour.Eval("hb_cdpSelect()"), "VM codepage restored");
         RunComplexHelper(generator, copy, "verify");

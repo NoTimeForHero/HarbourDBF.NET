@@ -668,6 +668,8 @@ namespace HarbourDBF.NET
             }
             else if (field.Type == "N")
             {
+                if (value is long integer && (integer <= -9007199254740992L || integer >= 9007199254740992L))
+                    throw new ArgumentException("Integer is outside the exact range of the Harbour JSON transport for field " + field.Name + ".");
                 if (value is decimal number && decimal.Round(number, field.Point) != number)
                     throw new ArgumentException("Number exceeds the precision of field " + field.Name + ".");
                 string text = value is decimal amount ? amount.ToString("F" + field.Point, CultureInfo.InvariantCulture) : Convert.ToString(value, CultureInfo.InvariantCulture);
