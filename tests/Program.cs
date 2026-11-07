@@ -90,12 +90,16 @@ internal static class Program
 
     private sealed class TypedMapping : DbfMapping<TypedModel>
     {
+        public DbfIndexMapping<TypedModel, int> ById { get; }
+        public DbfIndexMapping<TypedModel, string> ByName { get; }
         public TypedMapping()
         {
             Field(x => x.Id, "ID");
             Field(x => x.Name, "NAME").TrimEnd();
             Field(x => x.Birth, "BIRTH");
             Field(x => x.Active, "ACTIVE");
+            ById = Index(x => x.Id, "basic_id.cdx", "ID");
+            ByName = Index(x => x.Name, "basic_name.cdx", "NAME");
         }
     }
 
@@ -110,6 +114,10 @@ internal static class Program
             Equal("ALICE", first.Value.Name, "typed name");
             Equal(new DateTime(1990, 1, 2), first.Value.Birth.Value, "typed date");
             Require(table.ReadAt(4) == null, "missing typed record");
+            Equal("BOB", table.Index(mapping.ById).FindFirst(2).Value.Name, "typed numeric seek");
+            Equal(3, table.Index(mapping.ByName).FindFirst("CAROL").Value.Id, "typed text seek");
+            Require(table.Index(mapping.ByName).FindFirst("CAR") == null, "prefix was accepted as exact key");
+            Require(table.Index(mapping.ById).FindFirst(999) == null, "missing index key");
             var rows = table.Scan().Select(x => { Require(table.Read(first.Reference).Value.Id == 1, "nested read"); return x; }).ToList();
             Equal(3, rows.Count, "typed scan count");
             Require(!ReferenceEquals(rows[0].Value, first.Value), "typed values must be independent");

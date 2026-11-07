@@ -55,6 +55,7 @@
     <Compile Include="Data\DatabaseFieldsInfo.cs" />
     <Compile Include="Data\FieldType.cs" />
     <Compile Include="DbfHarbour.cs" />
+    <Compile Include="DbfIndex.cs" />
     <Compile Include="DbfMapping.cs" />
     <Compile Include="DbfSession.cs" />
     <Compile Include="DbfTable.cs" />
