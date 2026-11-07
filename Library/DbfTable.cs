@@ -161,21 +161,61 @@ namespace HarbourDBF.NET
             try
             {
                 DbfHarbour.Eval(deletedRecords == DbfDeletedRecords.Exclude ? "Set(11,.T.)" : "Set(11,.F.)");
-                bool found;
-                if (key is int number) found = DbfHarbour.Indexes.Seek(number, false, last);
-                else if (key is string text)
-                {
-                    var strict = (Encoding)encoding.Clone();
-                    strict.EncoderFallback = EncoderFallback.ExceptionFallback;
-                    int length = strict.GetByteCount(text);
-                    int width = schemaFields[descriptor.Field.Name].Length;
-                    if (length > width) throw new ArgumentException("The key exceeds the field width.", nameof(key));
-                    found = DbfHarbour.Indexes.Seek(text.PadRight(text.Length + width - length), false, last, strict);
-                }
-                else throw new ArgumentException("A non-null index key is required.", nameof(key));
+                bool found = SeekKey(descriptor, key, last);
                 return found ? ReadAt(DbfHarbour.ActiveRecord) : null;
             }
             finally { DbfHarbour.Eval(oldDeleted == "true" ? "Set(11,.T.)" : "Set(11,.F.)"); }
+        }
+
+        private bool SeekKey<TKey>(DbfIndexMapping<T, TKey> descriptor, TKey key, bool last)
+        {
+            if (key is int number) return DbfHarbour.Indexes.Seek(number, false, last);
+            if (key is string text)
+            {
+                var strict = (Encoding)encoding.Clone();
+                strict.EncoderFallback = EncoderFallback.ExceptionFallback;
+                int length = strict.GetByteCount(text);
+                int width = schemaFields[descriptor.Field.Name].Length;
+                if (length > width) throw new ArgumentException("The key exceeds the field width.", nameof(key));
+                return DbfHarbour.Indexes.Seek(text.PadRight(text.Length + width - length), false, last, strict);
+            }
+            throw new ArgumentException("A non-null index key is required.", nameof(key));
+        }
+
+        internal IEnumerable<DbfRecord<T>> EqualTo<TKey>(DbfIndexMapping<T, TKey> descriptor, TKey key)
+        {
+            int previous = 0;
+            while (true)
+            {
+                Check();
+                DbfRecord<T> next = null;
+                DbfHarbour.SelectArea(alias);
+                DbfHarbour.Indexes.Select(orders[descriptor]);
+                string oldDeleted = DbfHarbour.Eval("Set(11)");
+                try
+                {
+                    // OrdKeyNo/OrdKeyGoto use physical index positions. Keep deleted
+                    // keys in that numbering and apply the visibility policy after positioning.
+                    DbfHarbour.Eval("Set(11,.F.)");
+                    if (!SeekKey(descriptor, key, false)) yield break;
+                    long first = long.Parse(DbfHarbour.Eval("OrdKeyNo()"), CultureInfo.InvariantCulture);
+                    if (!SeekKey(descriptor, key, true)) yield break;
+                    long last = long.Parse(DbfHarbour.Eval("OrdKeyNo()"), CultureInfo.InvariantCulture);
+                    long position = first;
+                    if (previous != 0)
+                    {
+                        DbfHarbour.GoTo(previous);
+                        position = long.Parse(DbfHarbour.Eval("OrdKeyNo()"), CultureInfo.InvariantCulture);
+                        if (position < first || position > last) yield break;
+                        position++;
+                    }
+                    if (position > last || DbfHarbour.Eval("OrdKeyGoto(" + position.ToString(CultureInfo.InvariantCulture) + ")") != "true") yield break;
+                    previous = DbfHarbour.ActiveRecord;
+                    next = ReadAt(previous);
+                }
+                finally { DbfHarbour.Eval(oldDeleted == "true" ? "Set(11,.T.)" : "Set(11,.F.)"); }
+                if (next != null) yield return next;
+            }
         }
 
         private void Check() { session.Check(); if (disposed) throw new ObjectDisposedException(nameof(DbfTable<T>)); }

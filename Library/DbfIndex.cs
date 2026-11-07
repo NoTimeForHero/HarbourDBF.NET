@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace HarbourDBF.NET
 {
@@ -23,5 +24,6 @@ namespace HarbourDBF.NET
         internal DbfIndex(DbfTable<T> table, DbfIndexMapping<T, TKey> mapping) { this.table = table; this.mapping = mapping; }
         public DbfRecord<T> FindFirst(TKey key) => table.Find(mapping, key, false);
         public DbfRecord<T> FindLast(TKey key) => table.Find(mapping, key, true);
+        public IEnumerable<DbfRecord<T>> EqualTo(TKey key) => table.EqualTo(mapping, key);
     }
 }

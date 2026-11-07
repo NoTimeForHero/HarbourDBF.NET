@@ -43,6 +43,7 @@ internal static class Program
                 TypedDeleted(working);
                 TypedDeletionWrite(working);
                 TypedInsert(working);
+                TypedIndexEnumeration(working);
                 TypedUpdate(working);
                 TypedLockContention(working);
                 VerifyTypedWithHarbour(working);
@@ -397,6 +398,52 @@ internal static class Program
         }
         finally { DbfHarbour.CloseArea("CHECK_UPDATE"); }
         Console.WriteLine("PASS: typed update, validation, no-op and reopened indexes");
+    }
+
+    private static void TypedIndexEnumeration(string dir)
+    {
+        string copy = Path.Combine(dir, "typed-index-scan");
+        Directory.CreateDirectory(copy);
+        foreach (string file in new[] { "basic.dbf", "basic.fpt", "basic_id.cdx", "basic_name.cdx" })
+            File.Copy(Path.Combine(dir, file), Path.Combine(copy, file));
+        var mapping = new TypedMapping();
+        using (var session = DbfSession.Open(copy))
+        using (var table = session.OpenTable("basic.dbf", mapping, "UA866", Cp866, mode: DbfOpenMode.SharedReadWrite))
+        {
+            var second = table.Insert(new TypedModel { Id = 1, Name = "ALICE" });
+            var third = table.Insert(new TypedModel { Id = 1, Name = "ALICE" });
+            table.Insert(new TypedModel { Id = 10, Name = "ALICE" });
+            var index = table.Index(mapping.ById);
+            var names = table.Index(mapping.ByName);
+            Equal(3, index.EqualTo(1).Count(), "duplicate integer keys");
+            Equal(4, names.EqualTo("ALICE").Count(), "duplicate string keys");
+            Equal(0, names.EqualTo("ALI").Count(), "prefix enumeration");
+            using (var a = index.EqualTo(1).GetEnumerator())
+            using (var b = index.EqualTo(1).GetEnumerator())
+            {
+                Require(a.MoveNext() && b.MoveNext(), "first independent cursors");
+                Equal(a.Current.RecordNumber, b.Current.RecordNumber, "cursor start");
+                Require(a.MoveNext(), "first cursor second step");
+                Require(names.FindFirst("BOB") != null && b.MoveNext(), "nested search changed cursor");
+                Equal(a.Current.RecordNumber, b.Current.RecordNumber, "cursor position");
+            }
+            table.MarkDeleted(second.Reference);
+            Equal(2, index.EqualTo(1).Count(), "deleted duplicate excluded");
+            table.Recall(second.Reference);
+            table.MarkDeleted(third.Reference);
+            Equal(2, index.EqualTo(1).Count(), "last duplicate excluded");
+            Equal(second.RecordNumber, index.FindLast(1).RecordNumber, "last visible duplicate");
+            using (var all = session.OpenTable("basic.dbf", mapping, "UA866", Cp866, DbfDeletedRecords.Include))
+                Equal(3, all.Index(mapping.ById).EqualTo(1).Count(), "deleted duplicate included");
+            var enumerator = index.EqualTo(1).GetEnumerator();
+            Require(enumerator.MoveNext(), "cursor before close");
+            table.Dispose();
+            bool closedRejected = false;
+            try { enumerator.MoveNext(); } catch (ObjectDisposedException) { closedRejected = true; }
+            finally { enumerator.Dispose(); }
+            Require(closedRejected, "enumeration continued after table close");
+        }
+        Console.WriteLine("PASS: duplicate index enumeration and nested searches");
     }
 
     private static int HoldLock(string path)
