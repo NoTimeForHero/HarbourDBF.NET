@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -328,6 +329,30 @@ namespace HarbourDBF.NET
                 var value = _SeekText(key, softSeek, findLast);
                 if (GetLastError(out var error)) throw new HarbourException(error);
                 return value;
+            }
+
+            [DllImport(Constants.DllName, EntryPoint = "_DBF_INDEX_SEEK_TEMPORAL", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+            private static extern bool _SeekTemporal(string key, bool timestamp, bool softSeek, bool findLast);
+
+            /// <summary>Поиск ключа типа Date; время в значении не используется.</summary>
+            public static bool SeekDate(DateTime key, bool softSeek = false, bool findLast = false)
+            {
+                return SeekTemporal(key.ToString("yyyyMMdd", CultureInfo.InvariantCulture), false, softSeek, findLast);
+            }
+
+            /// <summary>Поиск ключа типа Timestamp с точностью до миллисекунды, без преобразования часового пояса.</summary>
+            public static bool SeekTimestamp(DateTime key, bool softSeek = false, bool findLast = false)
+            {
+                if (key.Ticks % TimeSpan.TicksPerMillisecond != 0)
+                    throw new ArgumentException("Timestamp precision is limited to milliseconds.", nameof(key));
+                return SeekTemporal(key.ToString("yyyyMMddHHmmssfff", CultureInfo.InvariantCulture), true, softSeek, findLast);
+            }
+
+            private static bool SeekTemporal(string key, bool timestamp, bool softSeek, bool findLast)
+            {
+                var found = _SeekTemporal(key, timestamp, softSeek, findLast);
+                if (GetLastError(out var error)) throw new HarbourException(error);
+                return found;
             }
 
             /// <summary>

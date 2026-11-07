@@ -8,6 +8,7 @@ REQUEST DBFCDX, DBFFPT
 // CDX expressions are compiled at runtime, so their functions must be linked
 // even when no static Harbour code calls them directly.
 REQUEST PADR, LEFT, UPPER, DTOS
+REQUEST HB_STOD, HB_STOT
 REQUEST HB_CODEPAGE_UA866
 
 STATIC cLastError := NIL
@@ -146,6 +147,15 @@ RETURN DbSeek(nPosition, lSoftSeek, lFindLast)
 
 FUNCTION DBF_INDEX_SEEK_TEXT(cKey, lSoftSeek, lFindLast)
 RETURN DbSeek(cKey, lSoftSeek, lFindLast)
+
+FUNCTION DBF_INDEX_SEEK_TEMPORAL(cKey, lTimestamp, lSoftSeek, lFindLast)
+  LOCAL xKey
+  IF lTimestamp
+    xKey := hb_SToT(cKey)
+  ELSE
+    xKey := hb_SToD(cKey)
+  ENDIF
+RETURN DbSeek(xKey, lSoftSeek, lFindLast)
 
 FUNCTION DBF_ORD_KEY_COUNT()
 RETURN OrdKeyCount()
@@ -434,6 +444,22 @@ HB_EXPORT HB_BOOL _export DBF_INDEX_SEEK_TEXT(const char * key, HB_BOOL softSeek
   PHB_ITEM pResult = hb_itemDoC( "DBF_INDEX_SEEK_TEXT", 3, pKey, pSoft, pLast );
   HB_BOOL value = hb_itemGetL( pResult );
   hb_itemRelease( pKey );
+  hb_itemRelease( pSoft );
+  hb_itemRelease( pLast );
+  hb_itemRelease( pResult );
+  return value;
+}
+
+HB_EXPORT HB_BOOL _export DBF_INDEX_SEEK_TEMPORAL(const char * key, HB_BOOL timestamp, HB_BOOL softSeek, HB_BOOL findLast)
+{
+  PHB_ITEM pKey = hb_itemPutC( NULL, key );
+  PHB_ITEM pTimestamp = hb_itemPutL( NULL, timestamp );
+  PHB_ITEM pSoft = hb_itemPutL( NULL, softSeek );
+  PHB_ITEM pLast = hb_itemPutL( NULL, findLast );
+  PHB_ITEM pResult = hb_itemDoC( "DBF_INDEX_SEEK_TEMPORAL", 4, pKey, pTimestamp, pSoft, pLast );
+  HB_BOOL value = hb_itemGetL( pResult );
+  hb_itemRelease( pKey );
+  hb_itemRelease( pTimestamp );
   hb_itemRelease( pSoft );
   hb_itemRelease( pLast );
   hb_itemRelease( pResult );
