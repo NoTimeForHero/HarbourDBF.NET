@@ -38,6 +38,7 @@ internal static class Program
                 DbfHarbour.Eval("Set(45,.F.)");
                 DbfHarbour.Eval("Set(11,.F.)");
                 ReadBasic(working);
+                TypedRead(working);
                 WriteBasic(working);
                 SpecialTypes(working);
             }
@@ -77,6 +78,47 @@ internal static class Program
         public string Name { get; set; }
         public int Id { get; set; }
         public string ReadOnly => Name;
+    }
+
+    private sealed class TypedModel
+    {
+        public int Id { get; set; }
+        public string Name { get; set; }
+        public DateTime? Birth { get; set; }
+        public bool Active { get; set; }
+    }
+
+    private sealed class TypedMapping : DbfMapping<TypedModel>
+    {
+        public TypedMapping()
+        {
+            Field(x => x.Id, "ID");
+            Field(x => x.Name, "NAME").TrimEnd();
+            Field(x => x.Birth, "BIRTH");
+            Field(x => x.Active, "ACTIVE");
+        }
+    }
+
+    private static void TypedRead(string dir)
+    {
+        var mapping = new TypedMapping();
+        using (var session = DbfSession.Open(dir))
+        using (var table = session.OpenTable("basic.dbf", mapping, "UA866", Cp866))
+        {
+            var first = table.ReadAt(1);
+            Equal(1, first.Value.Id, "typed id");
+            Equal("ALICE", first.Value.Name, "typed name");
+            Equal(new DateTime(1990, 1, 2), first.Value.Birth.Value, "typed date");
+            Require(table.ReadAt(4) == null, "missing typed record");
+            var rows = table.Scan().Select(x => { Require(table.Read(first.Reference).Value.Id == 1, "nested read"); return x; }).ToList();
+            Equal(3, rows.Count, "typed scan count");
+            Require(!ReferenceEquals(rows[0].Value, first.Value), "typed values must be independent");
+            bool wrongThread = false;
+            var thread = new System.Threading.Thread(() => { try { table.ReadAt(1); } catch (InvalidOperationException) { wrongThread = true; } });
+            thread.Start(); thread.Join();
+            Require(wrongThread, "wrong-thread access was accepted");
+        }
+        Console.WriteLine("PASS: typed read, scan and thread ownership");
     }
 
     private sealed class MappingProbe : DbfMapping<MappingModel>
