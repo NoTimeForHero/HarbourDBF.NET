@@ -15,8 +15,11 @@ namespace HarbourDBF.NET
         internal string Tag { get; }
         internal DbfKeyFormat Format { get; }
         internal readonly List<DbfCompositePart> Parts = new List<DbfCompositePart>();
-        internal bool IsComposite => Field == null;
-        public string HarbourExpression => IsComposite
+        internal string SearchBlock { get; set; }
+        internal Func<object, object[]> SearchArguments { get; set; }
+        internal bool IsSearchKey => SearchBlock != null;
+        internal bool IsComposite => Field == null && !IsSearchKey;
+        public string HarbourExpression => IsSearchKey ? null : IsComposite
             ? string.Join("+", Parts.Select(part => part.Format.Expression(part.Field.Name)))
             : Format == null ? Field.Name : Format.Expression(Field.Name);
     }
@@ -43,6 +46,21 @@ namespace HarbourDBF.NET
             var mapped = mapping.FindField(field);
             var getter = key.Compile();
             Parts.Add(new DbfCompositePart(mapped, property, value => getter((TKey)value), format));
+            return this;
+        }
+
+        public DbfIndexMapping<T, TKey> SearchKey(string harbour, Expression<Func<TKey, object[]>> arguments)
+        {
+            if (Field != null || IsSearchKey || Parts.Count != 0) throw new InvalidOperationException("SearchKey requires an empty index descriptor.");
+            mapping.CheckMutable();
+            if (string.IsNullOrWhiteSpace(harbour)) throw new ArgumentException("A Harbour block is required.", nameof(harbour));
+            string block = harbour.Trim();
+            if (!block.StartsWith("{|", StringComparison.Ordinal) || !block.EndsWith("}", StringComparison.Ordinal))
+                throw new ArgumentException("SearchKey must be a Harbour block literal.", nameof(harbour));
+            if (arguments == null) throw new ArgumentNullException(nameof(arguments));
+            var get = arguments.Compile();
+            SearchBlock = block;
+            SearchArguments = value => get((TKey)value);
             return this;
         }
     }

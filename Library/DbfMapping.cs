@@ -72,6 +72,8 @@ namespace HarbourDBF.NET
             return definition;
         }
 
+        protected DbfIndexMapping<T, TKey> Index<TKey>(string file, string tag) => CompositeIndex<TKey>(file, tag);
+
         internal void CheckMutable() => EnsureMutable();
 
         internal DbfFieldMapping FindField<TValue>(Expression<Func<T, TValue>> field)

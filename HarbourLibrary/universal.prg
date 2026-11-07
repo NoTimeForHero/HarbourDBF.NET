@@ -77,6 +77,23 @@ FUNCTION INTERNAL_FORMAT_KEY(cData)
   NEXT
 RETURN { "RESULT" => xValue }
 
+FUNCTION INTERNAL_SEARCH_BLOCK(cData, lValidateOnly)
+  LOCAL hData, cBlock, bBlock, xResult
+  hb_jsonDecode(cData, @hData)
+  cBlock := hData["block"]
+  bBlock := &cBlock
+  IF ValType(bBlock) != "B"
+    RETURN { "ERROR" => "SearchKey must be a Harbour block" }
+  ENDIF
+  IF lValidateOnly
+    RETURN { "RESULT" => .T. }
+  ENDIF
+  xResult := hb_ExecFromArray(bBlock, hData["arguments"])
+  IF ValType(xResult) != "C"
+    RETURN { "ERROR" => "SearchKey must return a character key" }
+  ENDIF
+RETURN { "RESULT" => xResult }
+
 FUNCTION DBF_PROCEDURE_CALL(cCommand, cData)
     LOCAL hResult
     IF cCommand == "LIST_FIELDS"
@@ -85,6 +102,10 @@ FUNCTION DBF_PROCEDURE_CALL(cCommand, cData)
       hResult := INTERNAL_SET_VALUES(cData)
     ELSEIF cCommand == "FORMAT_KEY"
       hResult := INTERNAL_FORMAT_KEY(cData)
+    ELSEIF cCommand == "VALIDATE_SEARCH_BLOCK"
+      hResult := INTERNAL_SEARCH_BLOCK(cData, .T.)
+    ELSEIF cCommand == "SEARCH_BLOCK"
+      hResult := INTERNAL_SEARCH_BLOCK(cData, .F.)
     ELSE
       hResult := { "ERROR" => "Unknown command name: " + cCommand}
     ENDIF

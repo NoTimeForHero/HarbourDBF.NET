@@ -46,12 +46,16 @@ PROCEDURE Main( cDir, cMode )
       cStage := "index composite"
       dbGoTop()
       INDEX ON STR(VIEW,4,0)+UPPER(PADR(NAME,30)) TAG VIEWNAME TO ( cCdx ) ADDITIVE
+      cStage := "index category"
+      dbGoTop()
+      INDEX ON IIF(VIEW=1,'A','B')+UPPER(PADR(NAME,30)) TAG CATEGORY TO ( cCdx ) ADDITIVE
       dbCloseArea()
       dbUseArea( .T., "DBFCDX", cDbf, "COMPLEX", .F., .T., "UA866" )
       OrdListAdd( cCdx )
-      Check( OrdCount() == 3, "multi-tag count" )
+      Check( OrdCount() == 4, "multi-tag count" )
       OrdSetFocus( "NAME" ); Check( dbSeek( cUpper ) .AND. FIELD->ID == 1, "uppercase search" )
       OrdSetFocus( "VIEWNAME" ); Check( dbSeek( Str(1,4,0)+PadR(cUpper,30) ) .AND. FIELD->ID == 1, "composite search" )
+      OrdSetFocus( "CATEGORY" ); Check( dbSeek( "A"+PadR(cUpper,30) ) .AND. FIELD->ID == 1, "category search" )
       dbCloseArea()
       OutStd( "PASS: generated and verified multi-tag fixture" + hb_eol() )
       ENDIF

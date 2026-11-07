@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text;
 using HarbourDBF.NET.Beta;
 using HarbourDBF.NET.Data;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
 namespace HarbourDBF.NET
@@ -44,6 +45,7 @@ namespace HarbourDBF.NET
         private readonly bool writable;
         private readonly bool shared;
         private readonly Dictionary<DbfIndexDefinition, int> orders = new Dictionary<DbfIndexDefinition, int>();
+        private readonly Dictionary<DbfIndexDefinition, int> searchKeyWidths = new Dictionary<DbfIndexDefinition, int>();
         private readonly Dictionary<string, FieldType> schemaFields = new Dictionary<string, FieldType>(StringComparer.OrdinalIgnoreCase);
         private FieldType[] fullSchema;
         private bool disposed;
@@ -135,13 +137,22 @@ namespace HarbourDBF.NET
                     if (match != 0) throw new InvalidOperationException("Duplicate index tag: " + index.Tag);
                     string bag = Path.GetFileNameWithoutExtension(DbfPaths.Index(tablePath, index.File));
                     if (!string.Equals((string)data[1], bag, StringComparison.OrdinalIgnoreCase) ||
-                        !string.Equals(RemoveWhitespace((string)data[2]), RemoveWhitespace(index.HarbourExpression), StringComparison.OrdinalIgnoreCase) ||
+                        (!index.IsSearchKey && !string.Equals(RemoveWhitespace((string)data[2]), RemoveWhitespace(index.HarbourExpression), StringComparison.OrdinalIgnoreCase)) ||
                         (bool)data[3] || !string.IsNullOrWhiteSpace((string)data[4]) || (bool)data[5] ||
                         !IsSupportedIndex(index))
                         throw new InvalidOperationException("Unsupported or mismatched index tag: " + index.Tag);
                     match = order;
                 }
                 if (match == 0) throw new InvalidOperationException("Index tag not found: " + index.Tag);
+                if (index.IsSearchKey)
+                {
+                    DbfHarbour.Indexes.Select(match);
+                    string keyType = JsonConvert.DeserializeObject<string>(DbfHarbour.Eval("HDBF_KEYTYPE()"));
+                    int width = int.Parse(DbfHarbour.Eval("HDBF_KEYSIZE()"), CultureInfo.InvariantCulture);
+                    if (keyType != "C" || width < 1 || width > 254) throw new InvalidOperationException("SearchKey requires a fixed-width character tag: " + index.Tag);
+                    RunSearchBlock(index, null, true);
+                    searchKeyWidths.Add(index, width);
+                }
                 orders.Add(index, match);
             }
         }
@@ -150,6 +161,7 @@ namespace HarbourDBF.NET
 
         private bool IsSupportedIndex(DbfIndexDefinition index)
         {
+            if (index.IsSearchKey) return encoding.IsSingleByte;
             if (index.IsComposite)
                 return encoding.IsSingleByte && index.Parts.Count > 0 &&
                     index.Parts.Sum(part => part.Format.Width.Value) <= 254 &&
@@ -194,6 +206,13 @@ namespace HarbourDBF.NET
 
         private bool SeekKey<TKey>(DbfIndexMapping<T, TKey> descriptor, TKey key, bool last)
         {
+            if (descriptor.IsSearchKey)
+            {
+                if ((object)key == null) throw new ArgumentNullException(nameof(key));
+                string formatted = RunSearchBlock(descriptor, descriptor.SearchArguments(key), false);
+                if (encoding.GetByteCount(formatted) != searchKeyWidths[descriptor]) throw new ArgumentException("SearchKey must return the complete tag key width.", nameof(key));
+                return DbfHarbour.Indexes.Seek(formatted, false, last, encoding);
+            }
             if (descriptor.IsComposite)
             {
                 if ((object)key == null) throw new ArgumentNullException(nameof(key));
@@ -220,6 +239,34 @@ namespace HarbourDBF.NET
                 return DbfHarbour.Indexes.Seek(text.PadRight(text.Length + width - length), false, last, strict);
             }
             throw new ArgumentException("A non-null index key is required.", nameof(key));
+        }
+
+        private string RunSearchBlock(DbfIndexDefinition descriptor, object[] arguments, bool validateOnly)
+        {
+            var strict = (Encoding)encoding.Clone();
+            strict.EncoderFallback = EncoderFallback.ExceptionFallback;
+            strict.GetByteCount(descriptor.SearchBlock);
+            if (!validateOnly)
+            {
+                if (arguments == null) throw new ArgumentException("SearchKey arguments cannot be null.");
+                foreach (object value in arguments)
+                {
+                    if (value is string text)
+                    {
+                        if (text.IndexOf('\0') >= 0) throw new ArgumentException("SearchKey arguments cannot contain a null character.");
+                        strict.GetByteCount(text);
+                    }
+                    else if (!(value is int) && !(value is bool)) throw new ArgumentException("SearchKey arguments must be strings, int values or booleans.");
+                }
+            }
+            string input = JsonConvert.SerializeObject(new { block = descriptor.SearchBlock, arguments = arguments ?? Array.Empty<object>() });
+            JToken result = InternalUniversal.ProcedureCall<JToken>(validateOnly ? "VALIDATE_SEARCH_BLOCK" : "SEARCH_BLOCK", input, strict);
+            if (validateOnly) return null;
+            if (result == null || result.Type != JTokenType.String) throw new InvalidOperationException("SearchKey returned a non-character value.");
+            string output = result.Value<string>();
+            strict.GetByteCount(output);
+            if (output.IndexOf('\0') >= 0) throw new ArgumentException("SearchKey returned a null character.");
+            return output;
         }
 
         internal IEnumerable<DbfRecord<T>> EqualTo<TKey>(DbfIndexMapping<T, TKey> descriptor, TKey key)

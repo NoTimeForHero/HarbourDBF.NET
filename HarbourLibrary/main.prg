@@ -11,8 +11,9 @@ REQUEST DBFCDX, DBFFPT
 REQUEST PADR, LEFT, UPPER, DTOS
 REQUEST HB_STOD, HB_STOT
 REQUEST DBSTRUCT, ORDBAGNAME, ORDKEYVAL, ORDKEY, ORDNAME, ORDDESCEND, ORDFOR, ORDISUNIQUE, ORDCOUNT, ORDKEYNO, ORDKEYGOTO, DBGOTOP
-REQUEST HDBF_KEYTYPE
+REQUEST HDBF_KEYTYPE, HDBF_KEYSIZE
 REQUEST ALLTRIM, UPPER, PADR, STR
+REQUEST HB_EXECFROMARRAY
 REQUEST HB_CODEPAGE_UA866
 
 STATIC cLastError := NIL
@@ -308,6 +309,21 @@ HB_FUNC( HDBF_KEYTYPE )
   {
     hb_itemRelease( info.itmResult );
     hb_retc( "" );
+  }
+}
+
+HB_FUNC( HDBF_KEYSIZE )
+{
+  AREAP area = (AREAP) hb_rddGetCurrentWorkAreaPointer();
+  DBORDERINFO info;
+  memset( &info, 0, sizeof(info) );
+  info.itmResult = hb_itemNew( NULL );
+  if( area && SELF_ORDINFO( area, DBOI_KEYSIZE, &info ) == HB_SUCCESS )
+    hb_itemReturnRelease( info.itmResult );
+  else
+  {
+    hb_itemRelease( info.itmResult );
+    hb_retni( 0 );
   }
 }
 

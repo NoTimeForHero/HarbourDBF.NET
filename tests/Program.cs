@@ -120,6 +120,7 @@ internal static class Program
     {
         public DbfIndexMapping<ComplexModel, string> ByName { get; }
         public DbfIndexMapping<ComplexModel, ComplexKey> ByViewName { get; }
+        public DbfIndexMapping<ComplexModel, ComplexKey> ByCategory { get; }
         public ComplexMapping()
         {
             Field(x => x.Id, "ID");
@@ -129,6 +130,8 @@ internal static class Program
             ByViewName = CompositeIndex<ComplexKey>("complex.cdx", "VIEWNAME")
                 .Part(key => key.View, row => row.View, DbfKeyFormat.Str(4))
                 .Part(key => key.Name, row => row.Name, DbfKeyFormat.PadRight(30).Upper());
+            ByCategory = Index<ComplexKey>("complex.cdx", "CATEGORY")
+                .SearchKey("{|view, name| IIF(view = 1, 'A', 'B') + UPPER(PADR(name,30)) }", key => new object[] { key.View, key.Name });
         }
     }
 
@@ -136,6 +139,16 @@ internal static class Program
     {
         public int View { get; set; }
         public string Name { get; set; }
+    }
+
+    private sealed class ShortBlockMapping : DbfMapping<ComplexModel>
+    {
+        public DbfIndexMapping<ComplexModel, int> IndexKey { get; }
+        public ShortBlockMapping()
+        {
+            Field(row => row.Id, "ID");
+            IndexKey = Index<int>("complex.cdx", "CATEGORY").SearchKey("{|id| 'A' }", id => new object[] { id });
+        }
     }
 
     private sealed class TypedSpecialMapping : DbfMapping<TypedSpecial>
@@ -552,6 +565,21 @@ internal static class Program
             Equal(2, complex.FindLast(key).Value.Id, "composite last key");
             Require(complex.FindFirst(new ComplexKey { View = 3, Name = "алиса" }) == null, "missing composite key");
             Require(mapping.ByViewName.HarbourExpression == "STR(VIEW,4,0)+UPPER(PADR(NAME,30))", "composite expression");
+            var arbitrary = table.Index(mapping.ByCategory);
+            Equal(2, arbitrary.EqualTo(key).Count(), "SearchKey duplicate keys");
+            Equal(1, arbitrary.FindFirst(key).Value.Id, "SearchKey first key");
+            Equal(4, arbitrary.FindFirst(new ComplexKey { View = 2, Name = "алиса" }).Value.Id, "SearchKey category");
+            Require(arbitrary.FindFirst(new ComplexKey { View = 1, Name = "x' + 'y" }) == null, "SearchKey argument was not passed as data");
+            bool blockEncoding = false;
+            try { arbitrary.FindFirst(new ComplexKey { View = 1, Name = "🙂" }); } catch (EncoderFallbackException) { blockEncoding = true; }
+            Require(blockEncoding, "unrepresentable SearchKey argument accepted");
+            var shortMapping = new ShortBlockMapping();
+            using (var shortTable = session.OpenTable("complex.dbf", shortMapping, "UA866", Cp866))
+            {
+                bool shortKey = false;
+                try { shortTable.Index(shortMapping.IndexKey).FindFirst(1); } catch (ArgumentException) { shortKey = true; }
+                Require(shortKey, "short SearchKey result accepted as exact key");
+            }
             bool overflowKey = false;
             try { complex.FindFirst(new ComplexKey { View = 10000, Name = "алиса" }); } catch (InvalidOperationException) { overflowKey = true; }
             Require(overflowKey, "composite STR overflow accepted");
