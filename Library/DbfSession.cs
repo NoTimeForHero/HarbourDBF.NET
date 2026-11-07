@@ -14,7 +14,6 @@ namespace HarbourDBF.NET
     {
         private static readonly object Gate = new object();
         private static Thread owner;
-        private static int sessions;
         private static bool callbackActive;
         private readonly Thread thread;
         private readonly List<IDisposable> tables = new List<IDisposable>();
@@ -29,7 +28,6 @@ namespace HarbourDBF.NET
             {
                 if (owner != null && owner != thread) throw new InvalidOperationException("The Harbour runtime is owned by another thread.");
                 owner = thread;
-                sessions++;
             }
         }
 
@@ -75,7 +73,6 @@ namespace HarbourDBF.NET
                 try { table.Dispose(); } catch (Exception error) { errors.Add(error); }
             }
             disposed = true;
-            lock (Gate) { if (--sessions == 0) owner = null; }
             if (errors.Count != 0) throw new AggregateException("Failed to close one or more tables.", errors);
         }
     }

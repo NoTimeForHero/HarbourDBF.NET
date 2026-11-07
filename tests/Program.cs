@@ -199,6 +199,14 @@ internal static class Program
             thread.Start(); thread.Join();
             Require(wrongThread, "wrong-thread access was accepted");
         }
+        bool ownershipTransferRejected = false;
+        var otherThread = new System.Threading.Thread(() =>
+        {
+            try { using (DbfSession.Open(dir)) { } }
+            catch (InvalidOperationException) { ownershipTransferRejected = true; }
+        });
+        otherThread.Start(); otherThread.Join();
+        Require(ownershipTransferRejected, "VM ownership transferred after sessions closed");
         Console.WriteLine("PASS: typed read, scan and thread ownership");
     }
 
