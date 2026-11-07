@@ -6,6 +6,9 @@ using System.Reflection;
 
 namespace HarbourDBF.NET
 {
+    [Flags]
+    public enum DbfRangeBounds { ExcludeBoth = 0, IncludeStart = 1, IncludeEnd = 2, IncludeBoth = 3 }
+
     public abstract class DbfIndexDefinition
     {
         internal DbfIndexDefinition(object owner, DbfFieldMapping field, string file, string tag, DbfKeyFormat format) { Owner = owner; Field = field; File = file; Tag = tag; Format = format; }
@@ -84,5 +87,11 @@ namespace HarbourDBF.NET
         public DbfRecord<T> FindLast(TKey key) => table.Find(mapping, key, true);
         public IEnumerable<DbfRecord<T>> EqualTo(TKey key) => table.EqualTo(mapping, key);
         public IEnumerable<DbfRecord<T>> Scan() => table.ScanIndex(mapping);
+        public IEnumerable<DbfRecord<T>> Range(TKey from, TKey to, DbfRangeBounds bounds)
+        {
+            if (mapping.IsSearchKey) throw new NotSupportedException("Range is not supported for SearchKey blocks.");
+            if ((bounds & ~DbfRangeBounds.IncludeBoth) != 0) throw new ArgumentOutOfRangeException(nameof(bounds));
+            return table.Range(mapping, from, to, bounds);
+        }
     }
 }

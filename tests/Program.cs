@@ -476,6 +476,15 @@ internal static class Program
             Equal(3, index.EqualTo(1).Count(), "duplicate integer keys");
             Equal(4, names.EqualTo("ALICE").Count(), "duplicate string keys");
             Require(index.Scan().Select(x => x.Value.Id).SequenceEqual(new[] { 1, 1, 1, 2, 3, 10 }), "index scan order");
+            Equal(5, index.Range(1, 3, DbfRangeBounds.IncludeBoth).Count(), "inclusive range");
+            Equal(4, index.Range(1, 3, DbfRangeBounds.IncludeStart).Count(), "range excludes end");
+            Equal(2, index.Range(1, 3, DbfRangeBounds.IncludeEnd).Count(), "range excludes start");
+            Equal(1, index.Range(1, 3, DbfRangeBounds.ExcludeBoth).Count(), "exclusive range");
+            Equal(5, index.Range(0, 4, DbfRangeBounds.IncludeBoth).Count(), "missing range boundaries");
+            Equal(0, index.Range(4, 9, DbfRangeBounds.IncludeBoth).Count(), "empty range");
+            Equal(6, index.Range(0, 99, DbfRangeBounds.IncludeBoth).Count(), "range outside index");
+            Equal(0, index.Range(11, 99, DbfRangeBounds.IncludeBoth).Count(), "range after index");
+            Equal(0, index.Range(3, 1, DbfRangeBounds.IncludeBoth).Count(), "reversed range");
             Equal(0, names.EqualTo("ALI").Count(), "prefix enumeration");
             using (var a = index.EqualTo(1).GetEnumerator())
             using (var b = index.EqualTo(1).GetEnumerator())
@@ -492,6 +501,7 @@ internal static class Program
             table.MarkDeleted(third.Reference);
             Equal(2, index.EqualTo(1).Count(), "last duplicate excluded");
             Equal(5, index.Scan().Count(), "deleted record in index scan");
+            Equal(4, index.Range(1, 3, DbfRangeBounds.IncludeBoth).Count(), "deleted record in range");
             Equal(second.RecordNumber, index.FindLast(1).RecordNumber, "last visible duplicate");
             using (var all = session.OpenTable("basic.dbf", mapping, "UA866", Cp866, DbfDeletedRecords.Include))
                 Equal(3, all.Index(mapping.ById).EqualTo(1).Count(), "deleted duplicate included");
@@ -564,8 +574,12 @@ internal static class Program
             Equal(1, complex.FindFirst(key).Value.Id, "composite first key");
             Equal(2, complex.FindLast(key).Value.Id, "composite last key");
             Require(complex.FindFirst(new ComplexKey { View = 3, Name = "алиса" }) == null, "missing composite key");
+            Equal(3, complex.Range(key, new ComplexKey { View = 1, Name = "борис" }, DbfRangeBounds.IncludeBoth).Count(), "composite full-key range");
             Require(mapping.ByViewName.HarbourExpression == "STR(VIEW,4,0)+UPPER(PADR(NAME,30))", "composite expression");
             var arbitrary = table.Index(mapping.ByCategory);
+            bool unsupportedRange = false;
+            try { arbitrary.Range(key, key, DbfRangeBounds.IncludeBoth); } catch (NotSupportedException) { unsupportedRange = true; }
+            Require(unsupportedRange, "SearchKey range accepted");
             Equal(2, arbitrary.EqualTo(key).Count(), "SearchKey duplicate keys");
             Equal(1, arbitrary.FindFirst(key).Value.Id, "SearchKey first key");
             Equal(4, arbitrary.FindFirst(new ComplexKey { View = 2, Name = "алиса" }).Value.Id, "SearchKey category");

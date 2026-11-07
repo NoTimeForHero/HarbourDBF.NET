@@ -366,6 +366,77 @@ namespace HarbourDBF.NET
             }
         }
 
+        internal IEnumerable<DbfRecord<T>> Range<TKey>(DbfIndexMapping<T, TKey> descriptor, TKey from, TKey to, DbfRangeBounds bounds)
+        {
+            int previous = 0;
+            object lower = null, upper = null;
+            while (true)
+            {
+                DbfRecord<T> next = null;
+                bool found = InCodepage(() => NextRange(descriptor, from, to, bounds, ref lower, ref upper, ref previous, out next));
+                if (!found) yield break;
+                yield return next;
+            }
+        }
+
+        private bool NextRange<TKey>(DbfIndexMapping<T, TKey> descriptor, TKey from, TKey to, DbfRangeBounds bounds,
+            ref object lower, ref object upper, ref int previous, out DbfRecord<T> next)
+        {
+            while (true)
+            {
+                Check();
+                next = null;
+                DbfHarbour.SelectArea(alias);
+                DbfHarbour.Indexes.Select(orders[descriptor]);
+                string oldDeleted = DbfHarbour.Eval("Set(11)");
+                try
+                {
+                    DbfHarbour.Eval("Set(11,.F.)");
+                    if (lower == null) lower = PrepareKey(descriptor, from);
+                    if (upper == null) upper = PrepareKey(descriptor, to);
+                    long first;
+                    if (SeekPrepared(lower, false, false))
+                    {
+                        if ((bounds & DbfRangeBounds.IncludeStart) == 0) SeekPrepared(lower, false, true);
+                        first = long.Parse(DbfHarbour.Eval("OrdKeyNo()"), CultureInfo.InvariantCulture);
+                        if ((bounds & DbfRangeBounds.IncludeStart) == 0) first++;
+                    }
+                    else
+                    {
+                        SeekPrepared(lower, true, false);
+                        if (DbfHarbour.EndOfFile) return false;
+                        first = long.Parse(DbfHarbour.Eval("OrdKeyNo()"), CultureInfo.InvariantCulture);
+                    }
+                    long last;
+                    if (SeekPrepared(upper, false, false))
+                    {
+                        if ((bounds & DbfRangeBounds.IncludeEnd) != 0) SeekPrepared(upper, false, true);
+                        last = long.Parse(DbfHarbour.Eval("OrdKeyNo()"), CultureInfo.InvariantCulture);
+                        if ((bounds & DbfRangeBounds.IncludeEnd) == 0) last--;
+                    }
+                    else
+                    {
+                        SeekPrepared(upper, true, false);
+                        last = DbfHarbour.EndOfFile ? DbfHarbour.Indexes.OrdKeyCount() :
+                            long.Parse(DbfHarbour.Eval("OrdKeyNo()"), CultureInfo.InvariantCulture) - 1;
+                    }
+                    long position = first;
+                    if (previous != 0)
+                    {
+                        DbfHarbour.GoTo(previous);
+                        position = long.Parse(DbfHarbour.Eval("OrdKeyNo()"), CultureInfo.InvariantCulture);
+                        if (position < first || position > last) return false;
+                        position++;
+                    }
+                    if (position < 1 || position > last || DbfHarbour.Eval("OrdKeyGoto(" + position.ToString(CultureInfo.InvariantCulture) + ")") != "true") return false;
+                    previous = DbfHarbour.ActiveRecord;
+                    next = ReadAt(previous);
+                }
+                finally { DbfHarbour.Eval(oldDeleted == "true" ? "Set(11,.T.)" : "Set(11,.F.)"); }
+                if (next != null) return true;
+            }
+        }
+
         private void Check() { session.Check(); if (disposed) throw new ObjectDisposedException(nameof(DbfTable<T>)); }
 
         public DbfRecord<T> ReadAt(long recordNumber)
