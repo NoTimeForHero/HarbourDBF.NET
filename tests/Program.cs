@@ -14,8 +14,9 @@ internal static class Program
 {
     private static readonly Encoding Cp866 = Encoding.GetEncoding(866);
 
-    private static int Main()
+    private static int Main(string[] args)
     {
+        if (args.Length == 2 && args[0] == "--hold-lock") return HoldLock(args[1]);
         try { PathResolution(); MappingDeclarations(); ExactIntegerConversion(); }
         catch (Exception error) { Console.Error.WriteLine("FAIL: " + error); return 1; }
         if (IntPtr.Size != 4) { Console.Error.WriteLine("The current native DLL requires an x86 process."); return 1; }
@@ -43,6 +44,7 @@ internal static class Program
                 TypedDeletionWrite(working);
                 TypedInsert(working);
                 TypedUpdate(working);
+                TypedLockContention(working);
                 WriteBasic(working);
                 SpecialTypes(working);
             }
@@ -386,6 +388,70 @@ internal static class Program
         }
         finally { DbfHarbour.CloseArea("CHECK_UPDATE"); }
         Console.WriteLine("PASS: typed update, validation, no-op and reopened indexes");
+    }
+
+    private static int HoldLock(string path)
+    {
+        try
+        {
+            DbfHarbour.Use(path, "LOCK_CHILD", false, "UA866");
+            try
+            {
+                if (!DbfHarbour.RecordLock(1)) return 2;
+                Console.WriteLine("READY");
+                Console.Out.Flush();
+                Console.ReadLine();
+                DbfHarbour.RecordLock(1, true);
+            }
+            finally { DbfHarbour.CloseArea("LOCK_CHILD"); }
+            return 0;
+        }
+        catch (Exception error) { Console.Error.WriteLine(error); return 1; }
+    }
+
+    private static void TypedLockContention(string dir)
+    {
+        string copy = Path.Combine(dir, "typed-lock");
+        Directory.CreateDirectory(copy);
+        foreach (string file in new[] { "basic.dbf", "basic.fpt", "basic_id.cdx", "basic_name.cdx" })
+            File.Copy(Path.Combine(dir, file), Path.Combine(copy, file));
+        var mapping = new TypedMapping();
+        using (var session = DbfSession.Open(copy))
+        using (var table = session.OpenTable("basic.dbf", mapping, "UA866", Cp866, mode: DbfOpenMode.SharedReadWrite))
+        using (var child = new System.Diagnostics.Process())
+        {
+            var reference = table.ReadAt(1).Reference;
+            child.StartInfo = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = System.Reflection.Assembly.GetExecutingAssembly().Location,
+                Arguments = "--hold-lock \"" + Path.Combine(copy, "basic.dbf") + "\"",
+                UseShellExecute = false,
+                RedirectStandardInput = true,
+                RedirectStandardOutput = true,
+                CreateNoWindow = true
+            };
+            Require(child.Start(), "lock helper did not start");
+            try
+            {
+                var ready = child.StandardOutput.ReadLineAsync();
+                Require(ready.Wait(10000) && ready.Result == "READY", "lock helper did not acquire record lock");
+                int callbacks = 0;
+                bool rejected = false;
+                try { table.Update(reference, row => callbacks++); } catch (DbfLockException) { rejected = true; }
+                Require(rejected && callbacks == 0, "update did not report lock contention before callback");
+                rejected = false;
+                try { table.MarkDeleted(reference); } catch (DbfLockException) { rejected = true; }
+                Require(rejected && table.Read(reference) != null, "delete did not report lock contention");
+                child.StandardInput.WriteLine("release");
+                Require(child.WaitForExit(10000) && child.ExitCode == 0, "lock helper did not release record lock");
+                table.Update(reference, row => row.Name = "AFTER LOCK");
+            }
+            finally
+            {
+                if (!child.HasExited) { child.Kill(); child.WaitForExit(); }
+            }
+        }
+        Console.WriteLine("PASS: lock contention across processes");
     }
 
     private sealed class MappingProbe : DbfMapping<MappingModel>
