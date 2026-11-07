@@ -10,7 +10,8 @@ REQUEST DBFCDX, DBFFPT
 // even when no static Harbour code calls them directly.
 REQUEST PADR, LEFT, UPPER, DTOS
 REQUEST HB_STOD, HB_STOT
-REQUEST DBSTRUCT, ORDBAGNAME, ORDKEYVAL, ORDKEY, ORDNAME, ORDDESCEND, ORDFOR, DBGOTOP
+REQUEST DBSTRUCT, ORDBAGNAME, ORDKEYVAL, ORDKEY, ORDNAME, ORDDESCEND, ORDFOR, ORDCOUNT, DBGOTOP
+REQUEST HDBF_KEYTYPE
 REQUEST HB_CODEPAGE_UA866
 
 STATIC cLastError := NIL
@@ -242,10 +243,12 @@ RETURN NIL
 
 #pragma BEGINDUMP
 #include <stdio.h>
+#include <string.h>
 #include <windows.h>
 #include <hbvm.h>
 #include <hbapi.h>
 #include <hbapiitm.h>
+#include <hbapirdd.h>
 
 /*
  Заметки об использованных функциях
@@ -281,6 +284,22 @@ BOOL WINAPI DllMain( HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved )  
       break;
   }
   return TRUE;
+}
+
+/* Unlike OrdKeyVal(), the tag's declared key type exists on an empty index. */
+HB_FUNC( HDBF_KEYTYPE )
+{
+  AREAP area = (AREAP) hb_rddGetCurrentWorkAreaPointer();
+  DBORDERINFO info;
+  memset( &info, 0, sizeof(info) );
+  info.itmResult = hb_itemNew( NULL );
+  if( area && SELF_ORDINFO( area, DBOI_KEYTYPE, &info ) == HB_SUCCESS )
+    hb_itemReturnRelease( info.itmResult );
+  else
+  {
+    hb_itemRelease( info.itmResult );
+    hb_retc( "" );
+  }
 }
 
 HB_EXPORT void* _export DBF_GOTO(long recordNumber)
