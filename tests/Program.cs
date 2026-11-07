@@ -45,6 +45,7 @@ internal static class Program
                 TypedInsert(working);
                 TypedUpdate(working);
                 TypedLockContention(working);
+                VerifyTypedWithHarbour(working);
                 WriteBasic(working);
                 SpecialTypes(working);
             }
@@ -407,6 +408,25 @@ internal static class Program
             return 0;
         }
         catch (Exception error) { Console.Error.WriteLine(error); return 1; }
+    }
+
+    private static void VerifyTypedWithHarbour(string dir)
+    {
+        string verifier = Environment.GetEnvironmentVariable("HARBOUR_TYPED_VERIFIER");
+        if (string.IsNullOrEmpty(verifier)) return;
+        using (var process = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+        {
+            FileName = verifier,
+            Arguments = "\"" + dir + "\"",
+            UseShellExecute = false,
+            CreateNoWindow = true
+        }))
+        {
+            Require(process != null, "independent Harbour verifier did not start");
+            if (!process.WaitForExit(10000)) { process.Kill(); process.WaitForExit(); throw new Exception("Independent Harbour verifier timed out"); }
+            Require(process.ExitCode == 0, "independent Harbour verifier failed with exit code " + process.ExitCode);
+        }
+        Console.WriteLine("PASS: independent Harbour verifier");
     }
 
     private static void TypedLockContention(string dir)

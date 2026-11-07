@@ -15,6 +15,19 @@
 
 Типизированные сценарии дополнительно проверяют чтение и поиск, видимость удалённых записей, добавление, обновление и повторное открытие индексов. Отдельный дочерний x86-процесс удерживает блокировку записи, чтобы проверить отказ `Update` и `MarkDeleted` до вызова callback. Это проверка файловой блокировки; она не заменяет независимую проверку формата другим экземпляром Harbour или более широкие конкурентные испытания.
 
+Для дополнительной проверки типизированной записи независимым Harbour соберите `verify-typed.prg` и передайте путь к нему через переменную окружения перед запуском LightTests. Программа только читает созданные тестом временные копии и открывает существующие CDX без перестроения. Из корня репозитория:
+
+```powershell
+$env:PATH = 'C:\borland\bcc58\bin;C:\MiniGUI_2607\harbour\bin;' + $env:PATH
+& 'C:\MiniGUI_2607\harbour\bin\hbmk2.exe' 'tests/verify-typed.prg' '-comp=bcc' '-otests/bin/verify-typed'
+if ($LASTEXITCODE -ne 0) { throw 'Harbour verifier build failed' }
+$env:HARBOUR_TYPED_VERIFIER = (Resolve-Path 'tests/bin/verify-typed.exe').Path
+try { ./tests/bin/Debug/net472/LightTests.exe; if ($LASTEXITCODE -ne 0) { throw 'Tests failed' } }
+finally { Remove-Item Env:HARBOUR_TYPED_VERIFIER }
+```
+
+Без переменной обычный запуск LightTests не требует этого проверяющего приложения. Проверка не охватывает все типы индексов и все виды конкурентной записи.
+
 ## Пересоздание данных разработчиком
 
 Готовые DBF/FPT/CDX уже находятся в Git; пересоздавать их для обычного запуска не требуется. Если нужно изменить набор, используйте [generate-fixtures.prg](../tests/generate-fixtures.prg) с Harbour 3.2 и BCC. Скрипт создаёт файлы только с известными именами и отказывается перезаписывать существующие. Из корня репозитория:
