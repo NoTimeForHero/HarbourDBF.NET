@@ -848,7 +848,11 @@ internal static class Program
                 Require(ready.Wait(10000) && ready.Result == "READY", "lock helper did not acquire record lock");
                 int callbacks = 0;
                 bool rejected = false;
-                try { table.Update(reference, row => callbacks++); } catch (DbfLockException) { rejected = true; }
+                try { table.Update(reference, row => callbacks++); }
+                catch (DbfLockException error)
+                {
+                    rejected = error.RecordNumber == 1 && error.Operation == "Update" && error.TablePath == Path.Combine(copy, "basic.dbf");
+                }
                 Require(rejected && callbacks == 0, "update did not report lock contention before callback");
                 rejected = false;
                 try { table.MarkDeleted(reference); } catch (DbfLockException) { rejected = true; }

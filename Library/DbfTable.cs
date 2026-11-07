@@ -13,7 +13,12 @@ namespace HarbourDBF.NET
 {
     public sealed class DbfLockException : InvalidOperationException
     {
-        internal DbfLockException(int recordNumber) : base("Could not lock DBF record " + recordNumber + ".") { }
+        internal DbfLockException(string tablePath, string operation, int recordNumber)
+            : base("Could not lock record " + recordNumber + " in " + tablePath + " for " + operation + ".")
+        { TablePath = tablePath; Operation = operation; RecordNumber = recordNumber; }
+        public string TablePath { get; }
+        public string Operation { get; }
+        public int RecordNumber { get; }
     }
 
     public sealed class DbfRecordRef<T> where T : class, new()
@@ -36,6 +41,7 @@ namespace HarbourDBF.NET
     public sealed class DbfTable<T> : IDisposable where T : class, new()
     {
         private readonly DbfSession session;
+        private readonly string tablePath;
         private readonly string alias = "A" + Guid.NewGuid().ToString("N");
         private readonly IReadOnlyList<DbfFieldMapping> fields;
         private readonly Encoding encoding;
@@ -53,6 +59,7 @@ namespace HarbourDBF.NET
         internal DbfTable(DbfSession session, string path, DbfMapping<T> mapping, string codepage, Encoding encoding, DbfDeletedRecords deletedRecords, DbfOpenMode mode)
         {
             this.session = session;
+            tablePath = path;
             this.mapping = mapping;
             this.codepage = codepage;
             this.deletedRecords = deletedRecords;
@@ -574,7 +581,7 @@ namespace HarbourDBF.NET
             DbfHarbour.SelectArea(alias);
             if (reference.Number > RecordCount()) throw new InvalidOperationException("The referenced record no longer exists.");
             EnsureNoExistingLocks();
-            if (!DbfHarbour.RecordLock(reference.Number)) throw new DbfLockException(reference.Number);
+            if (!DbfHarbour.RecordLock(reference.Number)) throw new DbfLockException(tablePath, "Update", reference.Number);
             Exception failure = null;
             DbfRecord<T> result = null;
             try
@@ -713,7 +720,7 @@ namespace HarbourDBF.NET
             DbfHarbour.SelectArea(alias);
             if (reference.Number > RecordCount()) throw new InvalidOperationException("The referenced record no longer exists.");
             EnsureNoExistingLocks();
-            if (!DbfHarbour.RecordLock(reference.Number)) throw new DbfLockException(reference.Number);
+            if (!DbfHarbour.RecordLock(reference.Number)) throw new DbfLockException(tablePath, deleted ? "MarkDeleted" : "Recall", reference.Number);
             Exception failure = null;
             try
             {
