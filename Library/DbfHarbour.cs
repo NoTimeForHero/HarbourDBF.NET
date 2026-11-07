@@ -358,6 +358,18 @@ namespace HarbourDBF.NET
                 return value;
             }
 
+            [DllImport(Constants.DllName, EntryPoint = "_DBF_INDEX_SEEK_NUMBER", CallingConvention = CallingConvention.Cdecl)]
+            private static extern bool _SeekNumber(double key, bool softSeek, bool findLast);
+
+            /// <summary>Поиск числового ключа с представлением Harbour/CDX double.</summary>
+            public static bool Seek(double key, bool softSeek = false, bool findLast = false)
+            {
+                if (double.IsNaN(key) || double.IsInfinity(key)) throw new ArgumentOutOfRangeException(nameof(key));
+                var found = _SeekNumber(key, softSeek, findLast);
+                if (GetLastError(out var error)) throw new HarbourException(error);
+                return found;
+            }
+
             [DllImport(Constants.DllName, EntryPoint = "_DBF_INDEX_SEEK_TEXT", CallingConvention = CallingConvention.Cdecl)]
             private static extern bool _SeekText(byte[] searchValue, bool softSeek, bool findLast);
 
@@ -366,7 +378,9 @@ namespace HarbourDBF.NET
             {
                 if (searchValue == null) throw new ArgumentNullException(nameof(searchValue));
                 if (searchValue.IndexOf('\0') >= 0) throw new ArgumentException("A key cannot contain a null character.", nameof(searchValue));
-                var key = UnsafeUtils.GetNullTerminatedBytes(searchValue, encoding ?? Constants.DefaultEncoding);
+                var strictEncoding = (Encoding)(encoding ?? Constants.DefaultEncoding).Clone();
+                strictEncoding.EncoderFallback = EncoderFallback.ExceptionFallback;
+                var key = UnsafeUtils.GetNullTerminatedBytes(searchValue, strictEncoding);
                 var value = _SeekText(key, softSeek, findLast);
                 if (GetLastError(out var error)) throw new HarbourException(error);
                 return value;

@@ -10,6 +10,7 @@ REQUEST DBFCDX, DBFFPT
 // even when no static Harbour code calls them directly.
 REQUEST PADR, LEFT, UPPER, DTOS
 REQUEST HB_STOD, HB_STOT
+REQUEST DBSTRUCT, ORDBAGNAME, ORDKEYVAL, ORDKEY, ORDNAME, ORDDESCEND, ORDFOR, DBGOTOP
 REQUEST HB_CODEPAGE_UA866
 
 STATIC cLastError := NIL
@@ -168,6 +169,9 @@ RETURN DbSeek(xKey, lSoftSeek, lFindLast)
 
 FUNCTION DBF_INDEX_SEEK_LOGICAL(lKey, lSoftSeek, lFindLast)
 RETURN DbSeek(lKey, lSoftSeek, lFindLast)
+
+FUNCTION DBF_INDEX_SEEK_NUMBER(nKey, lSoftSeek, lFindLast)
+RETURN DbSeek(nKey, lSoftSeek, lFindLast)
 
 FUNCTION DBF_ORD_KEY_COUNT()
 RETURN OrdKeyCount()
@@ -520,6 +524,20 @@ HB_EXPORT HB_BOOL _export DBF_INDEX_SEEK_LOGICAL(HB_BOOL key, HB_BOOL softSeek, 
   PHB_ITEM pSoft = hb_itemPutL( NULL, softSeek );
   PHB_ITEM pLast = hb_itemPutL( NULL, findLast );
   PHB_ITEM pResult = hb_itemDoC( "DBF_INDEX_SEEK_LOGICAL", 3, pKey, pSoft, pLast );
+  HB_BOOL value = hb_itemGetL( pResult );
+  hb_itemRelease( pKey );
+  hb_itemRelease( pSoft );
+  hb_itemRelease( pLast );
+  hb_itemRelease( pResult );
+  return value;
+}
+
+HB_EXPORT HB_BOOL _export DBF_INDEX_SEEK_NUMBER(double key, HB_BOOL softSeek, HB_BOOL findLast)
+{
+  PHB_ITEM pKey = hb_itemPutND( NULL, key );
+  PHB_ITEM pSoft = hb_itemPutL( NULL, softSeek );
+  PHB_ITEM pLast = hb_itemPutL( NULL, findLast );
+  PHB_ITEM pResult = hb_itemDoC( "DBF_INDEX_SEEK_NUMBER", 3, pKey, pSoft, pLast );
   HB_BOOL value = hb_itemGetL( pResult );
   hb_itemRelease( pKey );
   hb_itemRelease( pSoft );
