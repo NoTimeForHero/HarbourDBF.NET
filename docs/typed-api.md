@@ -27,13 +27,19 @@ public sealed class PersonMapping : DbfMapping<Person>
     }
 }
 
-var mapping = new PersonMapping();
-using (var session = DbfSession.Open(@"D:\SampleData"))
-using (var people = session.OpenTable("basic.dbf", mapping, "UA866", Encoding.GetEncoding(866)))
+public static class Example
 {
-    var person = people.Index(mapping.ById).FindFirst(2);
-    if (person != null) Console.WriteLine(person.Value.Name);
-    foreach (var row in people.Scan()) Console.WriteLine(row.Value.Name);
+    public static void Run()
+    {
+        var mapping = new PersonMapping();
+        using (var session = DbfSession.Open(@"D:\SampleData"))
+        using (var people = session.OpenTable("basic.dbf", mapping, "UA866", Encoding.GetEncoding(866)))
+        {
+            var person = people.Index(mapping.ById).FindFirst(2);
+            if (person != null) Console.WriteLine(person.Value.Name);
+            foreach (var row in people.Scan()) Console.WriteLine(row.Value.Name);
+        }
+    }
 }
 ```
 
