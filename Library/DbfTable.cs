@@ -766,6 +766,8 @@ namespace HarbourDBF.NET
         public void Dispose()
             => InCodepage(() => { DisposeCore(); return true; });
 
+        internal void CloseAfterFailedOpen() => DisposeCore();
+
         private void DisposeCore()
         {
             if (disposed) return;
