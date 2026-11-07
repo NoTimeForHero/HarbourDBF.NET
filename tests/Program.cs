@@ -16,7 +16,7 @@ internal static class Program
 
     private static int Main()
     {
-        try { PathResolution(); }
+        try { PathResolution(); MappingDeclarations(); }
         catch (Exception error) { Console.Error.WriteLine("FAIL: " + error); return 1; }
         if (IntPtr.Size != 4) { Console.Error.WriteLine("The current native DLL requires an x86 process."); return 1; }
         if (!File.Exists(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "hbdbf.dll"))) { Console.Error.WriteLine("Build HarbourLibrary/hbdbf.dll, then rebuild LightTests."); return 1; }
@@ -70,6 +70,33 @@ internal static class Program
             Require(rejected, "ambiguous path accepted: " + invalid);
         }
         Console.WriteLine("PASS: DBF and CDX path resolution");
+    }
+
+    private sealed class MappingModel
+    {
+        public string Name { get; set; }
+        public int Id { get; set; }
+        public string ReadOnly => Name;
+    }
+
+    private sealed class MappingProbe : DbfMapping<MappingModel>
+    {
+        public void AddName() => Field(x => x.Name, "NAME").TrimEnd();
+        public void AddDuplicate() => Field(x => x.Id, "name");
+        public void AddReadOnly() => Field(x => x.ReadOnly, "OTHER");
+        public void TrimNumber() => Field(x => x.Id, "ID").TrimEnd();
+    }
+
+    private static void MappingDeclarations()
+    {
+        var mapping = new MappingProbe();
+        mapping.AddName();
+        bool duplicate = false, readOnly = false, badTrim = false;
+        try { mapping.AddDuplicate(); } catch (ArgumentException) { duplicate = true; }
+        try { mapping.AddReadOnly(); } catch (ArgumentException) { readOnly = true; }
+        try { mapping.TrimNumber(); } catch (InvalidOperationException) { badTrim = true; }
+        Require(duplicate && readOnly && badTrim, "invalid field mapping was accepted");
+        Console.WriteLine("PASS: field mapping declarations");
     }
 
     private static void ReadBasic(string dir)
