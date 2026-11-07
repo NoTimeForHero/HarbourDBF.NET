@@ -231,6 +231,47 @@ namespace HarbourDBF.NET
             }
         }
 
+        internal IEnumerable<DbfRecord<T>> ScanIndex<TKey>(DbfIndexMapping<T, TKey> descriptor)
+        {
+            int previous = 0;
+            while (true)
+            {
+                DbfRecord<T> next = null;
+                bool found = DbfRuntime.Invoke(() => NextIndex(descriptor, ref previous, out next));
+                if (!found) yield break;
+                yield return next;
+            }
+        }
+
+        private bool NextIndex<TKey>(DbfIndexMapping<T, TKey> descriptor, ref int previous, out DbfRecord<T> next)
+        {
+            while (true)
+            {
+                Check();
+                next = null;
+                DbfHarbour.SelectArea(alias);
+                DbfHarbour.Indexes.Select(orders[descriptor]);
+                string oldDeleted = DbfHarbour.Eval("Set(11)");
+                try
+                {
+                    DbfHarbour.Eval("Set(11,.F.)");
+                    long position = 1;
+                    if (previous != 0)
+                    {
+                        DbfHarbour.GoTo(previous);
+                        position = long.Parse(DbfHarbour.Eval("OrdKeyNo()"), CultureInfo.InvariantCulture);
+                        if (position < 1) return false;
+                        position++;
+                    }
+                    if (DbfHarbour.Eval("OrdKeyGoto(" + position.ToString(CultureInfo.InvariantCulture) + ")") != "true") return false;
+                    previous = DbfHarbour.ActiveRecord;
+                    next = ReadAt(previous);
+                }
+                finally { DbfHarbour.Eval(oldDeleted == "true" ? "Set(11,.T.)" : "Set(11,.F.)"); }
+                if (next != null) return true;
+            }
+        }
+
         private void Check() { session.Check(); if (disposed) throw new ObjectDisposedException(nameof(DbfTable<T>)); }
 
         public DbfRecord<T> ReadAt(long recordNumber)

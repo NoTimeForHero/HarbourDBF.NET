@@ -25,5 +25,6 @@ namespace HarbourDBF.NET
         public DbfRecord<T> FindFirst(TKey key) => table.Find(mapping, key, false);
         public DbfRecord<T> FindLast(TKey key) => table.Find(mapping, key, true);
         public IEnumerable<DbfRecord<T>> EqualTo(TKey key) => table.EqualTo(mapping, key);
+        public IEnumerable<DbfRecord<T>> Scan() => table.ScanIndex(mapping);
     }
 }
