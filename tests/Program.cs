@@ -40,6 +40,7 @@ internal static class Program
             {
                 DbfHarbour.Eval("Set(45,.F.)");
                 DbfHarbour.Eval("Set(11,.F.)");
+                LegacyPasswordComparison();
                 ReadBasic(working);
                 TypedRead(working);
                 TypedNestedPaths(working);
@@ -67,6 +68,28 @@ internal static class Program
         }
         catch (Exception error) { Console.Error.WriteLine("FAIL: " + error); return 1; }
         finally { if (Directory.Exists(working)) Directory.Delete(working, true); }
+    }
+
+    private static void LegacyPasswordComparison()
+    {
+        var encoded = DbfHarbour.Eval("HB_BASE64ENCODE(HB_CRYPT('sample','fixture-key'))").Trim('"');
+        var value = Encoding.ASCII.GetBytes(encoded);
+        var key = Encoding.ASCII.GetBytes("fixture-key");
+        Require(DbfHarbour.LegacyPasswordEquals(value, Encoding.ASCII.GetBytes(" sample "), key), "legacy password should match");
+        Require(!DbfHarbour.LegacyPasswordEquals(value, Encoding.ASCII.GetBytes("wrong"), key), "wrong password matched");
+        Require(!DbfHarbour.LegacyPasswordEquals(value, Encoding.ASCII.GetBytes("SAMPLE"), key), "ordinary password must be case sensitive");
+        var cyrillic = Cp866.GetBytes("тест");
+        var expression = string.Join("+", cyrillic.Select(b => "Chr(" + b.ToString(CultureInfo.InvariantCulture) + ")"));
+        var encodedCyrillic = DbfHarbour.Eval("HB_BASE64ENCODE(HB_CRYPT(" + expression + ",'fixture-key'))").Trim('"');
+        Require(DbfHarbour.LegacyPasswordEquals(Encoding.ASCII.GetBytes(encodedCyrillic), cyrillic, key), "CP866 password should match");
+        Require(!DbfHarbour.LegacyPasswordEquals(Encoding.ASCII.GetBytes(encodedCyrillic), Encoding.UTF8.GetBytes("тест"), key), "different byte encoding must not match");
+        var cp1251 = Encoding.GetEncoding(1251);
+        Require(DbfHarbour.LegacyOperatorCode(cp1251.GetBytes("domain\\ 001 ")) == 1, "legacy prefix or leading zero conversion");
+        Require(DbfHarbour.LegacyOperatorCode(cp1251.GetBytes("12abc")) == 12, "legacy VAL prefix conversion");
+        Require(DbfHarbour.LegacyOperatorCode(new byte[0]) == 0, "empty legacy code");
+        Require(DbfHarbour.LegacyMasterEquals(cp1251.GetBytes(" ТЕСТ "), cp1251.GetBytes("тест"), "RU1251"), "legacy master case conversion");
+        Require(!DbfHarbour.LegacyMasterEquals(cp1251.GetBytes("wrong"), cp1251.GetBytes("тест"), "RU1251"), "incorrect master password matched");
+        Console.WriteLine("PASS: synthetic legacy password comparison");
     }
 
     private static void PathResolution()

@@ -4,7 +4,7 @@
 
 ## Требования и сборка
 
-Проверенная конфигурация: Windows, процесс x86, Harbour 3.2.0dev (r2503200530), Borland BCC 5.8, .NET Framework 4.7.2 targeting pack и Newtonsoft.Json 13.0.3. Проверка x64 отложена. Нативная DLL и процесс приложения должны иметь одинаковую разрядность.
+Проверенная конфигурация: Windows, процесс x86, Harbour 3.2.0dev (r2503200530) с библиотекой `xhb`, Borland BCC 5.8, .NET Framework 4.7.2 targeting pack и Newtonsoft.Json 13.0.3. Проверка x64 отложена. Нативная DLL и процесс приложения должны иметь одинаковую разрядность.
 
 Восстановите пакет `Newtonsoft.Json` из `Library/packages.config` в каталог `packages` через Visual Studio или NuGet CLI. Например, с установленным `nuget.exe` из корня репозитория:
 

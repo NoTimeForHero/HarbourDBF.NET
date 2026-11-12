@@ -187,6 +187,55 @@ namespace HarbourDBF.NET
             return result;
         }
 
+        [DllImport(Constants.DllName, EntryPoint = "_DBF_LEGACY_PASSWORD_EQUALS", CallingConvention = CallingConvention.Cdecl)]
+        private static extern int _LegacyPasswordEquals(byte[] encoded, int encodedLength, byte[] password, int passwordLength, byte[] key, int keyLength);
+
+        /// <summary>Compares an encoded legacy password using Harbour HB_DECRYPT without evaluating caller input as code.</summary>
+        public static bool LegacyPasswordEquals(byte[] encoded, byte[] password, byte[] key)
+        {
+            if (encoded == null) throw new ArgumentNullException(nameof(encoded));
+            if (password == null) throw new ArgumentNullException(nameof(password));
+            if (key == null || key.Length == 0) throw new ArgumentException("Key must not be empty.", nameof(key));
+            if (!DbfRuntime.IsExecutorThread) return DbfRuntime.Invoke(() => LegacyPasswordEquals(encoded, password, key));
+            DbfSession.CheckCallback();
+            // Marshal a non-null pointer even for an empty string; the length still controls the input.
+            int result = _LegacyPasswordEquals(encoded.Length == 0 ? new byte[1] : encoded, encoded.Length,
+                password.Length == 0 ? new byte[1] : password, password.Length, key, key.Length);
+            if (GetLastError(out _)) throw new InvalidOperationException("Legacy password comparison failed.");
+            return result != 0;
+        }
+
+        [DllImport(Constants.DllName, EntryPoint = "_DBF_LEGACY_OPERATOR_CODE", CallingConvention = CallingConvention.Cdecl)]
+        private static extern double _LegacyOperatorCode(byte[] input, int length);
+        [DllImport(Constants.DllName, EntryPoint = "_DBF_LEGACY_MASTER_EQUALS", CallingConvention = CallingConvention.Cdecl)]
+        private static extern int _LegacyMasterEquals(byte[] password, int passwordLength, byte[] master, int masterLength);
+
+        /// <summary>Applies the legacy prefix removal and Harbour VAL to an encoded operator code.</summary>
+        public static double LegacyOperatorCode(byte[] input)
+        {
+            if (input == null) throw new ArgumentNullException(nameof(input));
+            if (!DbfRuntime.IsExecutorThread) return DbfRuntime.Invoke(() => LegacyOperatorCode(input));
+            DbfSession.CheckCallback();
+            var result = _LegacyOperatorCode(input.Length == 0 ? new byte[1] : input, input.Length);
+            if (GetLastError(out _)) throw new InvalidOperationException("Legacy operator code conversion failed.");
+            return result;
+        }
+
+        /// <summary>Compares a legacy master password in the explicitly selected Harbour codepage.</summary>
+        public static bool LegacyMasterEquals(byte[] password, byte[] master, string codepage)
+        {
+            if (password == null) throw new ArgumentNullException(nameof(password));
+            if (master == null) throw new ArgumentNullException(nameof(master));
+            if (!DbfRuntime.IsExecutorThread) return DbfRuntime.Invoke(() => LegacyMasterEquals(password, master, codepage));
+            DbfSession.CheckCallback();
+            return DbfCodepage.Run(DbfCodepage.Normalize(codepage), () => {
+                var result = _LegacyMasterEquals(password.Length == 0 ? new byte[1] : password, password.Length,
+                    master.Length == 0 ? new byte[1] : master, master.Length);
+                if (GetLastError(out _)) throw new InvalidOperationException("Legacy master password comparison failed.");
+                return result != 0;
+            });
+        }
+
         [DllImport(Constants.DllName, EntryPoint = "_DBF_GET_ALIAS", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         private static extern IntPtr GetAlias();
 

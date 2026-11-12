@@ -3,6 +3,7 @@
 
 # Do not make terminal window
 -gui
+-lxhb
 
 # Building log level: TRACE
 # -trace
