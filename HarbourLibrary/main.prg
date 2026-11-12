@@ -15,7 +15,7 @@ REQUEST HDBF_KEYTYPE, HDBF_KEYSIZE
 REQUEST ALLTRIM, UPPER, PADR, STR, DTOS
 REQUEST HB_EXECFROMARRAY
 REQUEST DBCLOSEALL
-REQUEST HB_CODEPAGE_UA866
+REQUEST HB_CODEPAGE_UA866, HB_CODEPAGE_RU1251
 REQUEST HB_CRYPT, HB_DECRYPT, HB_BASE64ENCODE, HB_BASE64DECODE
 
 STATIC cLastError := NIL
@@ -243,6 +243,16 @@ RETURN hb_jsonEncode(hData)
 FUNCTION DBF_LEGACY_PASSWORD_EQUALS(cEncoded, cPassword, cKey)
   LOCAL cDecoded := HB_Base64Decode(AllTrim(cEncoded))
 RETURN AllTrim(cPassword) == RTrim(HB_Decrypt(cDecoded, cKey))
+
+FUNCTION DBF_LEGACY_OPERATOR_CODE(cUser)
+  LOCAL nSeparator := At("\", cUser)
+  IF nSeparator > 0
+    cUser := SubStr(cUser, nSeparator + 1)
+  ENDIF
+RETURN Val(AllTrim(cUser))
+
+FUNCTION DBF_LEGACY_MASTER_EQUALS(cPassword, cMaster)
+RETURN Upper(AllTrim(cPassword)) == Upper(cMaster)
 
 FUNCTION DBF_MAKE_INDEX(cAlias, cTag, cIndex, cFor)
   DbSelectArea(cAlias)
@@ -668,6 +678,28 @@ HB_EXPORT int _export DBF_LEGACY_PASSWORD_EQUALS(const char * encoded, int encod
   hb_itemRelease(pEncoded);
   hb_itemRelease(pPassword);
   hb_itemRelease(pKey);
+  hb_itemRelease(pResult);
+  return result;
+}
+
+HB_EXPORT double _export DBF_LEGACY_OPERATOR_CODE(const char * user, int length)
+{
+  PHB_ITEM pUser = hb_itemPutCL(NULL, user, length);
+  PHB_ITEM pResult = hb_itemDoC("DBF_LEGACY_OPERATOR_CODE", 1, pUser);
+  double result = hb_itemGetND(pResult);
+  hb_itemRelease(pUser);
+  hb_itemRelease(pResult);
+  return result;
+}
+
+HB_EXPORT int _export DBF_LEGACY_MASTER_EQUALS(const char * password, int passwordLen, const char * master, int masterLen)
+{
+  PHB_ITEM pPassword = hb_itemPutCL(NULL, password, passwordLen);
+  PHB_ITEM pMaster = hb_itemPutCL(NULL, master, masterLen);
+  PHB_ITEM pResult = hb_itemDoC("DBF_LEGACY_MASTER_EQUALS", 2, pPassword, pMaster);
+  int result = hb_itemGetL(pResult);
+  hb_itemRelease(pPassword);
+  hb_itemRelease(pMaster);
   hb_itemRelease(pResult);
   return result;
 }

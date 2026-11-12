@@ -83,6 +83,12 @@ internal static class Program
         var encodedCyrillic = DbfHarbour.Eval("HB_BASE64ENCODE(HB_CRYPT(" + expression + ",'fixture-key'))").Trim('"');
         Require(DbfHarbour.LegacyPasswordEquals(Encoding.ASCII.GetBytes(encodedCyrillic), cyrillic, key), "CP866 password should match");
         Require(!DbfHarbour.LegacyPasswordEquals(Encoding.ASCII.GetBytes(encodedCyrillic), Encoding.UTF8.GetBytes("тест"), key), "different byte encoding must not match");
+        var cp1251 = Encoding.GetEncoding(1251);
+        Require(DbfHarbour.LegacyOperatorCode(cp1251.GetBytes("domain\\ 001 ")) == 1, "legacy prefix or leading zero conversion");
+        Require(DbfHarbour.LegacyOperatorCode(cp1251.GetBytes("12abc")) == 12, "legacy VAL prefix conversion");
+        Require(DbfHarbour.LegacyOperatorCode(new byte[0]) == 0, "empty legacy code");
+        Require(DbfHarbour.LegacyMasterEquals(cp1251.GetBytes(" ТЕСТ "), cp1251.GetBytes("тест"), "RU1251"), "legacy master case conversion");
+        Require(!DbfHarbour.LegacyMasterEquals(cp1251.GetBytes("wrong"), cp1251.GetBytes("тест"), "RU1251"), "incorrect master password matched");
         Console.WriteLine("PASS: synthetic legacy password comparison");
     }
 
