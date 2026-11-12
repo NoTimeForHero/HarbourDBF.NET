@@ -187,6 +187,24 @@ namespace HarbourDBF.NET
             return result;
         }
 
+        [DllImport(Constants.DllName, EntryPoint = "_DBF_LEGACY_PASSWORD_EQUALS", CallingConvention = CallingConvention.Cdecl)]
+        private static extern int _LegacyPasswordEquals(byte[] encoded, int encodedLength, byte[] password, int passwordLength, byte[] key, int keyLength);
+
+        /// <summary>Compares an encoded legacy password using Harbour HB_DECRYPT without evaluating caller input as code.</summary>
+        public static bool LegacyPasswordEquals(byte[] encoded, byte[] password, byte[] key)
+        {
+            if (encoded == null) throw new ArgumentNullException(nameof(encoded));
+            if (password == null) throw new ArgumentNullException(nameof(password));
+            if (key == null || key.Length == 0) throw new ArgumentException("Key must not be empty.", nameof(key));
+            if (!DbfRuntime.IsExecutorThread) return DbfRuntime.Invoke(() => LegacyPasswordEquals(encoded, password, key));
+            DbfSession.CheckCallback();
+            // Marshal a non-null pointer even for an empty string; the length still controls the input.
+            int result = _LegacyPasswordEquals(encoded.Length == 0 ? new byte[1] : encoded, encoded.Length,
+                password.Length == 0 ? new byte[1] : password, password.Length, key, key.Length);
+            if (GetLastError(out _)) throw new InvalidOperationException("Legacy password comparison failed.");
+            return result != 0;
+        }
+
         [DllImport(Constants.DllName, EntryPoint = "_DBF_GET_ALIAS", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         private static extern IntPtr GetAlias();
 
